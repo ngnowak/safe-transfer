@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: safetransfer
+  docker:
+    compose:
+      file: safetransfer/docker/docker-compose.yml
+    #  lifecycle-management: none
+  datasource:
+    url: jdbc:postgresql://localhost:5432/safe_transfer
+    username: safe_transfer
+    password: safe_transfer
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true
+  api-docs:
+    path: /v3/api-docs
+
+server:
+  port: 8080

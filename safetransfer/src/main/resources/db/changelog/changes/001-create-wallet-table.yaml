@@ -1,0 +1,65 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-wallet-table
+      author: nnowak
+      changes:
+        - createTable:
+            tableName: wallet
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_wallet
+                    nullable: false
+              - column:
+                  name: tenant_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: customer_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: bigint
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: wallet
+            columnNames: tenant_id, customer_id, currency
+            constraintName: uk_wallet_tenant_customer_currency
+
+        - createIndex:
+            tableName: wallet
+            indexName: idx_wallet_tenant_id
+            columns:
+              - column:
+                  name: tenant_id
+
+        - createIndex:
+            tableName: wallet
+            indexName: idx_wallet_customer_id
+            columns:
+              - column:
+                  name: customer_id

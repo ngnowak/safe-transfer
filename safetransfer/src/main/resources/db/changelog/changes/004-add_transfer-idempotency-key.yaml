@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-add-transfer-idempotency-key
+      author: nnowak
+      changes:
+        - addColumn:
+            tableName: transfer
+            columns:
+              - column:
+                  name: idempotency_key
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: transfer
+            columnNames: tenant_id, idempotency_key
+            constraintName: uk_transfer_tenant_idempotency_key

@@ -1,0 +1,62 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-ledger-entry-table
+      author: nnowak
+      changes:
+        - createTable:
+            tableName: ledger_entry
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_ledger_entry
+                    nullable: false
+              - column:
+                  name: tenant_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: wallet_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: entry_type
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: numeric(19,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reference
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: ledger_entry
+            indexName: idx_ledger_entry_wallet_id
+            columns:
+              - column:
+                  name: wallet_id
+
+        - createIndex:
+            tableName: ledger_entry
+            indexName: idx_ledger_entry_tenant_id
+            columns:
+              - column:
+                  name: tenant_id

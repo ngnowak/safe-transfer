@@ -1,0 +1,74 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-transfer-table
+      author: natalia
+      changes:
+        - createTable:
+            tableName: transfer
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_transfer
+                    nullable: false
+              - column:
+                  name: tenant_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source_wallet_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: destination_wallet_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: numeric(19,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reference
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: transfer
+            indexName: idx_transfer_tenant_id
+            columns:
+              - column:
+                  name: tenant_id
+
+        - createIndex:
+            tableName: transfer
+            indexName: idx_transfer_source_wallet_id
+            columns:
+              - column:
+                  name: source_wallet_id
+
+        - createIndex:
+            tableName: transfer
+            indexName: idx_transfer_destination_wallet_id
+            columns:
+              - column:
+                  name: destination_wallet_id
