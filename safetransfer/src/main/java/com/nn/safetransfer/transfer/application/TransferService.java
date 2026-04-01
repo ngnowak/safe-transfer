@@ -86,8 +86,9 @@ public class TransferService {
             throw new InsufficientFundsException(sourceWalletId, availableBalance, request.amount());
         }
 
+        Transfer transfer;
         try {
-            var transfer = transferRepository.save(
+            transfer = transferRepository.save(
                     Transfer.completed(
                             tenantId,
                             sourceWalletId,
@@ -99,32 +100,34 @@ public class TransferService {
                     )
             );
 
-            var ledgerReference = "Transfer " + transfer.getId().value();
 
-            ledgerEntryRepository.save(
-                    LedgerEntry.debit(
-                            tenantId,
-                            sourceWalletId,
-                            request.amount(),
-                            requestCurrency,
-                            ledgerReference
-                    )
-            );
-
-            ledgerEntryRepository.save(
-                    LedgerEntry.credit(
-                            tenantId,
-                            destinationWalletId,
-                            request.amount(),
-                            requestCurrency,
-                            ledgerReference
-                    )
-            );
-
-            return transfer;
         } catch (DataIntegrityViolationException ex) {
             return transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
                     .orElseThrow(() -> ex);
         }
+
+        var ledgerReference = "Transfer " + transfer.getId().value();
+
+        ledgerEntryRepository.save(
+                LedgerEntry.debit(
+                        tenantId,
+                        sourceWalletId,
+                        request.amount(),
+                        requestCurrency,
+                        ledgerReference
+                )
+        );
+
+        ledgerEntryRepository.save(
+                LedgerEntry.credit(
+                        tenantId,
+                        destinationWalletId,
+                        request.amount(),
+                        requestCurrency,
+                        ledgerReference
+                )
+        );
+
+        return transfer;
     }
 }

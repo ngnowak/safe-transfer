@@ -35,6 +35,7 @@ dependencies {
 	annotationProcessor("org.projectlombok:lombok")
 	compileOnly("org.projectlombok:lombok")
 
+	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-kafka-test")

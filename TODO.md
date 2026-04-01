@@ -7,30 +7,31 @@
 * start testing by unit tests
 * start testing by integration tests
 
-to show on interview:
-wallet creation OK
-get wallet OK
-deposit OK
-transfer between wallets
-balance from ledger
-idempotency
-multitenancy
-transactional outbox
-audit/notification async consumer
-global exception handling
-Swagger
-Docker + Postgres
-integration tests
-one concurrency test
-architecture diagrams
+Needed use cases:
+- wallet creation OK
+- get wallet OK
+- deposit OK
+- transfer between wallets
+- balance from ledger
+- idempotency
+- multitenancy
+- transactional outbox
+- audit/notification async consumer
+- global exception handling
+- Swagger
+- Docker + Postgres
+- integration tests
+- concurrency tests
+- architecture diagrams
 
 Do these in order:
 
-transfer endpoint
-idempotency
+transfer endpoint ok
+idempotency ok
+concurrency test
+
 balance endpoint from ledger
 outbox + async audit event
-concurrency test
 diagrams + README polish
 metrics/logging polish
 
