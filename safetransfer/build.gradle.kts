@@ -55,19 +55,19 @@ sourceSets {
 	create("testUtils") {
 		java.srcDir("src/test/utils/java")
 		resources.srcDir("src/test/utils/resources")
-		compileClasspath += sourceSets.main.get().output + configurations.testRuntimeClasspath.get()
+		compileClasspath += sourceSets.main.get().output
 		runtimeClasspath += output + compileClasspath
 	}
 	create("unitTest") {
 		java.srcDir("src/test/unit/tests")
 		resources.srcDir("src/test/unit/resources")
-		compileClasspath += sourceSets.main.get().output + sourceSets["testUtils"].output + configurations.testRuntimeClasspath.get()
+		compileClasspath += sourceSets.main.get().output + sourceSets["testUtils"].output
 		runtimeClasspath += output + compileClasspath
 	}
 	create("integrationTest") {
 		java.srcDir("src/test/integration/tests")
 		resources.srcDir("src/test/integration/resources")
-		compileClasspath += sourceSets.main.get().output + sourceSets["testUtils"].output + configurations.testRuntimeClasspath.get()
+		compileClasspath += sourceSets.main.get().output + sourceSets["testUtils"].output
 		runtimeClasspath += output + compileClasspath
 	}
 }

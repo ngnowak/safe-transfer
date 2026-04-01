@@ -11,8 +11,8 @@ import java.util.UUID;
 
 @Builder
 public record CreateTransferRequest(
-        @NotBlank UUID sourceWalletId,
-        @NotBlank UUID destinationWalletId,
+        @NotNull UUID sourceWalletId,
+        @NotNull UUID destinationWalletId,
 
         @NotNull
         @DecimalMin(value = "0.01")
