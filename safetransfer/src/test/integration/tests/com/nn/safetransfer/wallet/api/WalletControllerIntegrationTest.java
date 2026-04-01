@@ -3,6 +3,9 @@ package com.nn.safetransfer.wallet.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
+import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
+import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
+import com.nn.safetransfer.wallet.api.dto.BalanceResponse;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositResponse;
@@ -29,7 +32,9 @@ class WalletControllerIntegrationTest {
 
     private static final String WALLETS_PATH = "/api/v1/tenants/{tenantId}/wallets";
     private static final String WALLET_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}";
+    private static final String BALANCE_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/balance";
     private static final String DEPOSITS_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/deposits";
+    private static final String TRANSFERS_PATH = "/api/v1/tenants/{tenantId}/transfers";
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,9 +47,13 @@ class WalletControllerIntegrationTest {
     @Autowired
     private SpringDataLedgerEntryRepository ledgerEntryRepository;
 
+    @Autowired
+    private SpringDataTransferRepository transferRepository;
+
     @AfterEach
     void cleanUp() {
         ledgerEntryRepository.deleteAll();
+        transferRepository.deleteAll();
         walletRepository.deleteAll();
     }
 
@@ -360,6 +369,110 @@ class WalletControllerIntegrationTest {
         assertThat(walletRepository.findAll()).hasSize(2);
     }
 
+    @Test
+    void shouldGetBalanceSuccessfully() throws Exception {
+        // given
+        var tenantId = UUID.randomUUID();
+        var walletId = createWallet(tenantId, "EUR");
+        deposit(tenantId, walletId, "500.00", "EUR");
+
+        // when
+        var result = mockMvc.perform(get(BALANCE_PATH, tenantId, walletId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        // then
+        var response = objectMapper.readValue(
+                result.getResponse().getContentAsString(), BalanceResponse.class
+        );
+
+        assertAll(
+                () -> assertThat(response.walletId()).isEqualTo(walletId),
+                () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
+                () -> assertThat(response.currency()).isEqualTo("EUR"),
+                () -> assertThat(response.balance()).isEqualByComparingTo(new BigDecimal("500.00"))
+        );
+    }
+
+    @Test
+    void shouldGetZeroBalanceForNewWallet() throws Exception {
+        // given
+        var tenantId = UUID.randomUUID();
+        var walletId = createWallet(tenantId, "EUR");
+
+        // when
+        var result = mockMvc.perform(get(BALANCE_PATH, tenantId, walletId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        // then
+        var response = objectMapper.readValue(
+                result.getResponse().getContentAsString(), BalanceResponse.class
+        );
+
+        assertAll(
+                () -> assertThat(response.walletId()).isEqualTo(walletId),
+                () -> assertThat(response.balance()).isEqualByComparingTo(BigDecimal.ZERO)
+        );
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenGettingBalanceForNonExistentWallet() throws Exception {
+        // given
+        var tenantId = UUID.randomUUID();
+        var walletId = UUID.randomUUID();
+
+        // when / then
+        mockMvc.perform(get(BALANCE_PATH, tenantId, walletId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Wallet not found"));
+    }
+
+    @Test
+    void shouldReflectBalanceAfterTransfer() throws Exception {
+        // given
+        var tenantId = UUID.randomUUID();
+        var sourceWalletId = createWallet(tenantId, "EUR");
+        var destinationWalletId = createWallet(tenantId, "EUR");
+        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+
+        var transferRequest = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(new BigDecimal("300.00"))
+                .currency("EUR")
+                .reference("Test transfer")
+                .build();
+
+        mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(transferRequest)))
+                .andExpect(status().isOk());
+
+        // when
+        var sourceResult = mockMvc.perform(get(BALANCE_PATH, tenantId, sourceWalletId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        var destinationResult = mockMvc.perform(get(BALANCE_PATH, tenantId, destinationWalletId))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        // then
+        var sourceBalance = objectMapper.readValue(
+                sourceResult.getResponse().getContentAsString(), BalanceResponse.class
+        );
+        var destinationBalance = objectMapper.readValue(
+                destinationResult.getResponse().getContentAsString(), BalanceResponse.class
+        );
+
+        assertAll(
+                () -> assertThat(sourceBalance.balance()).isEqualByComparingTo(new BigDecimal("700.00")),
+                () -> assertThat(destinationBalance.balance()).isEqualByComparingTo(new BigDecimal("300.00"))
+        );
+    }
+
     private String createWallet(UUID tenantId, String currency) throws Exception {
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
@@ -372,5 +485,14 @@ class WalletControllerIntegrationTest {
         return objectMapper.readValue(
                 result.getResponse().getContentAsString(), WalletResponse.class
         ).walletId();
+    }
+
+    private void deposit(UUID tenantId, String walletId, String amount, String currency) throws Exception {
+        mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new DepositRequest(new BigDecimal(amount), currency, null)
+                        )))
+                .andExpect(status().isOk());
     }
 }

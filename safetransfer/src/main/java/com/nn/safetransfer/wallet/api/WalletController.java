@@ -1,14 +1,18 @@
 package com.nn.safetransfer.wallet.api;
 
+import com.nn.safetransfer.wallet.api.dto.BalanceResponse;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositResponse;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
+import com.nn.safetransfer.wallet.api.mapper.BalanceResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.DepositResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.WalletResponseMapper;
 import com.nn.safetransfer.wallet.application.CreateWalletUseCase;
 import com.nn.safetransfer.wallet.application.DepositService;
+import com.nn.safetransfer.wallet.application.GetBalanceQuery;
 import com.nn.safetransfer.wallet.application.GetWalletQuery;
+import com.nn.safetransfer.wallet.application.QueryBalanceUseCase;
 import com.nn.safetransfer.wallet.application.QueryWalletUseCase;
 import com.nn.safetransfer.wallet.application.mapper.CreateWalletCommandMapper;
 import com.nn.safetransfer.wallet.domain.TenantId;
@@ -36,8 +40,10 @@ public class WalletController {
     private final WalletResponseMapper walletResponseMapper;
     private final CreateWalletCommandMapper createWalletCommandMapper;
     private final QueryWalletUseCase queryWalletUseCase;
+    private final QueryBalanceUseCase queryBalanceUseCase;
     private final DepositService depositService;
     private final DepositResponseMapper depositResponseMapper;
+    private final BalanceResponseMapper balanceResponseMapper;
 
     @Operation(summary = "Create wallet")
     @PostMapping
@@ -64,6 +70,21 @@ public class WalletController {
         var wallet = queryWalletUseCase.handle(command);
 
         return walletResponseMapper.toWalletResponse(wallet);
+    }
+
+    @Operation(summary = "Get wallet balance")
+    @GetMapping("/{walletId}/balance")
+    public BalanceResponse getBalance(
+            @PathVariable UUID tenantId,
+            @PathVariable UUID walletId
+    ) {
+        var query = GetBalanceQuery.builder()
+                .tenantId(new TenantId(tenantId))
+                .walletId(new WalletId(walletId))
+                .build();
+        var result = queryBalanceUseCase.handle(query);
+
+        return balanceResponseMapper.toBalanceResponse(result);
     }
 
     @Operation(summary = "Deposits")
