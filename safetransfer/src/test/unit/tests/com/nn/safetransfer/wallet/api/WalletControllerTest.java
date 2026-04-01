@@ -1,16 +1,21 @@
 package com.nn.safetransfer.wallet.api;
 
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
+import com.nn.safetransfer.wallet.api.dto.BalanceResponse;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositResponse;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
+import com.nn.safetransfer.wallet.api.mapper.BalanceResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.DepositResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.WalletResponseMapper;
+import com.nn.safetransfer.wallet.application.BalanceResult;
 import com.nn.safetransfer.wallet.application.CreateWalletCommand;
 import com.nn.safetransfer.wallet.application.CreateWalletUseCase;
 import com.nn.safetransfer.wallet.application.DepositService;
+import com.nn.safetransfer.wallet.application.GetBalanceQuery;
 import com.nn.safetransfer.wallet.application.GetWalletQuery;
+import com.nn.safetransfer.wallet.application.QueryBalanceUseCase;
 import com.nn.safetransfer.wallet.application.QueryWalletUseCase;
 import com.nn.safetransfer.wallet.application.mapper.CreateWalletCommandMapper;
 import com.nn.safetransfer.wallet.domain.CustomerId;
@@ -51,10 +56,16 @@ class WalletControllerTest {
     private QueryWalletUseCase queryWalletUseCase;
 
     @Mock
+    private QueryBalanceUseCase queryBalanceUseCase;
+
+    @Mock
     private DepositService depositService;
 
     @Mock
     private DepositResponseMapper depositResponseMapper;
+
+    @Mock
+    private BalanceResponseMapper balanceResponseMapper;
 
     @InjectMocks
     private WalletController walletController;
@@ -150,6 +161,34 @@ class WalletControllerTest {
                 () -> assertThat(response).isEqualTo(expectedResponse),
                 () -> verify(depositService).deposit(new TenantId(tenantId), new WalletId(walletId), request),
                 () -> verify(depositResponseMapper).toDepositResponse(ledgerEntry)
+        );
+    }
+
+    @Test
+    void shouldGetBalance() {
+        // given
+        var tenantId = UUID.randomUUID();
+        var walletId = UUID.randomUUID();
+        var wallet = Wallet.create(new TenantId(tenantId), CustomerId.create(), EUR);
+        var balanceResult = new BalanceResult(wallet, new BigDecimal("500.00"));
+        var expectedResponse = BalanceResponse.builder()
+                .walletId(wallet.getId().toString())
+                .tenantId(tenantId.toString())
+                .currency("EUR")
+                .balance(new BigDecimal("500.00"))
+                .build();
+
+        given(queryBalanceUseCase.handle(any(GetBalanceQuery.class))).willReturn(balanceResult);
+        given(balanceResponseMapper.toBalanceResponse(balanceResult)).willReturn(expectedResponse);
+
+        // when
+        var response = walletController.getBalance(tenantId, walletId);
+
+        // then
+        assertAll(
+                () -> assertThat(response).isEqualTo(expectedResponse),
+                () -> verify(queryBalanceUseCase).handle(any(GetBalanceQuery.class)),
+                () -> verify(balanceResponseMapper).toBalanceResponse(balanceResult)
         );
     }
 }

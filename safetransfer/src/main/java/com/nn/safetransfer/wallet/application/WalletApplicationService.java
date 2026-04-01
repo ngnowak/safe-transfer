@@ -3,9 +3,11 @@ package com.nn.safetransfer.wallet.application;
 import com.nn.safetransfer.wallet.domain.Wallet;
 import com.nn.safetransfer.wallet.domain.WalletRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class WalletApplicationService implements CreateWalletUseCase {
@@ -15,6 +17,8 @@ public class WalletApplicationService implements CreateWalletUseCase {
     @Override
     @Transactional
     public Wallet handle(CreateWalletCommand command) {
+        log.info("Creating wallet: tenantId={}, customerId={}, currency={}", command.tenantId(), command.customerId(), command.currency());
+
         var alreadyExists = walletRepository.existsByTenantIdAndCustomerIdAndCurrency(
                 command.tenantId(),
                 command.customerId(),
@@ -22,6 +26,7 @@ public class WalletApplicationService implements CreateWalletUseCase {
         );
 
         if (alreadyExists) {
+            log.warn("Duplicate wallet attempt: tenantId={}, customerId={}, currency={}", command.tenantId(), command.customerId(), command.currency());
             throw new IllegalArgumentException("Wallet already exists for this tenant, customer, and currency");
         }
 
@@ -31,6 +36,9 @@ public class WalletApplicationService implements CreateWalletUseCase {
                 command.currency()
         );
 
-        return walletRepository.save(wallet);
+        var saved = walletRepository.save(wallet);
+        log.info("Wallet created: walletId={}", saved.getId());
+
+        return saved;
     }
 }

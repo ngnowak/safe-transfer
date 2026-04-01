@@ -3,8 +3,9 @@ package com.nn.safetransfer;
 import com.nn.safetransfer.annotation.IntegrationTest;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
+import com.nn.safetransfer.common.domain.result.Result;
+import com.nn.safetransfer.transfer.application.TransferError;
 import com.nn.safetransfer.transfer.application.TransferService;
-import com.nn.safetransfer.transfer.application.exception.InsufficientFundsException;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
@@ -103,7 +104,7 @@ class ConcurrencyIntegrationTest {
 
         // then
         long successes = results.stream().filter(r -> r.success).count();
-        long failures = results.stream().filter(r -> !r.success && r.exception instanceof InsufficientFundsException).count();
+        long failures = results.stream().filter(r -> !r.success && r.error instanceof TransferError.InsufficientFunds).count();
 
         assertThat(successes).isEqualTo(1);
         assertThat(failures).isEqualTo(9);
@@ -390,7 +391,7 @@ class ConcurrencyIntegrationTest {
                                            WalletId destinationId, String amount,
                                            String idempotencyKey) {
         try {
-            var transfer = transactionTemplate.execute(status ->
+            var result = transactionTemplate.execute(status ->
                     transferService.transfer(
                             tenantId,
                             idempotencyKey,
@@ -403,9 +404,14 @@ class ConcurrencyIntegrationTest {
                                     .build()
                     )
             );
-            return new TransferResult(true, transfer, null);
+            return switch (result) {
+                case Result.Success<TransferError, Transfer> success ->
+                        new TransferResult(true, success.value(), null);
+                case Result.Failure<TransferError, Transfer> failure ->
+                        new TransferResult(false, null, failure.error());
+            };
         } catch (Exception e) {
-            return new TransferResult(false, null, e);
+            return new TransferResult(false, null, null);
         }
     }
 
@@ -417,6 +423,6 @@ class ConcurrencyIntegrationTest {
         return results;
     }
 
-    private record TransferResult(boolean success, Transfer transfer, Exception exception) {}
+    private record TransferResult(boolean success, Transfer transfer, TransferError error) {}
     private record WalletResult(boolean success, Wallet wallet, Exception exception) {}
 }

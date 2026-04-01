@@ -1,7 +1,5 @@
 package com.nn.safetransfer.common.api;
 
-import com.nn.safetransfer.transfer.application.exception.InsufficientFundsException;
-import com.nn.safetransfer.transfer.application.exception.SameWalletTransferNotAllowedException;
 import com.nn.safetransfer.wallet.application.exception.WalletCurrencyMismatchException;
 import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
 import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
@@ -14,8 +12,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -85,42 +81,6 @@ class GlobalExceptionHandlerTest {
                 () -> assertThat(problem.getStatus()).isEqualTo(BAD_REQUEST.value()),
                 () -> assertThat(problem.getTitle()).isEqualTo("Wallet currency mismatch"),
                 () -> assertThat(problem.getDetail()).contains("EUR").contains("USD"),
-                () -> assertThat(problem.getProperties()).containsEntry("path", REQUEST_URI)
-        );
-    }
-
-    @Test
-    void shouldHandleInsufficientFundsException() {
-        // given
-        var walletId = WalletId.create();
-        var exception = new InsufficientFundsException(walletId, new BigDecimal("50.00"), new BigDecimal("100.00"));
-        given(request.getRequestURI()).willReturn(REQUEST_URI);
-
-        // when
-        var problem = handler.handleInsufficientFunds(exception, request);
-
-        // then
-        assertAll(
-                () -> assertThat(problem.getStatus()).isEqualTo(CONFLICT.value()),
-                () -> assertThat(problem.getTitle()).isEqualTo("Insufficient funds"),
-                () -> assertThat(problem.getDetail()).contains("50").contains("100"),
-                () -> assertThat(problem.getProperties()).containsEntry("path", REQUEST_URI)
-        );
-    }
-
-    @Test
-    void shouldHandleSameWalletTransferNotAllowedException() {
-        // given
-        var exception = new SameWalletTransferNotAllowedException();
-        given(request.getRequestURI()).willReturn(REQUEST_URI);
-
-        // when
-        var problem = handler.handleSameWalletTransfer(exception, request);
-
-        // then
-        assertAll(
-                () -> assertThat(problem.getStatus()).isEqualTo(BAD_REQUEST.value()),
-                () -> assertThat(problem.getTitle()).isEqualTo("Invalid transfer"),
                 () -> assertThat(problem.getProperties()).containsEntry("path", REQUEST_URI)
         );
     }

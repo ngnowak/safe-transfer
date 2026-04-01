@@ -1,8 +1,10 @@
 package com.nn.safetransfer.transfer.api;
 
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.api.dto.TransferResponse;
 import com.nn.safetransfer.transfer.api.mapper.TransferResponseMapper;
+import com.nn.safetransfer.transfer.application.TransferError;
 import com.nn.safetransfer.transfer.application.TransferService;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.wallet.domain.TenantId;
@@ -12,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -65,7 +69,7 @@ class TransferControllerTest {
                 .build();
 
         given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
-                .willReturn(transfer);
+                .willReturn(Result.success(transfer));
         given(transferResponseMapper.toResponse(transfer))
                 .willReturn(expectedResponse);
 
@@ -74,9 +78,84 @@ class TransferControllerTest {
 
         // then
         assertAll(
-                () -> assertThat(response).isEqualTo(expectedResponse),
+                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
+                () -> assertThat(response.getBody()).isEqualTo(expectedResponse),
                 () -> verify(transferService).transfer(new TenantId(tenantId), idempotencyKey, request),
                 () -> verify(transferResponseMapper).toResponse(transfer)
+        );
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenWalletNotFound() {
+        // given
+        var tenantId = UUID.randomUUID();
+        var idempotencyKey = "idem-key-456";
+        var walletId = WalletId.create();
+        var request = new CreateTransferRequest(
+                walletId.value(), UUID.randomUUID(),
+                new BigDecimal("50.00"), "EUR", null
+        );
+
+        given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
+                .willReturn(Result.failure(new TransferError.WalletNotFound(walletId, new TenantId(tenantId))));
+
+        // when
+        var response = transferController.createTransfer(tenantId, idempotencyKey, request);
+
+        // then
+        assertAll(
+                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND),
+                () -> assertThat(response.getBody()).isInstanceOf(ProblemDetail.class)
+        );
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenSameWalletTransfer() {
+        // given
+        var tenantId = UUID.randomUUID();
+        var idempotencyKey = "idem-key-789";
+        var walletId = UUID.randomUUID();
+        var request = new CreateTransferRequest(
+                walletId, walletId,
+                new BigDecimal("50.00"), "EUR", null
+        );
+
+        given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
+                .willReturn(Result.failure(new TransferError.SameWalletTransfer()));
+
+        // when
+        var response = transferController.createTransfer(tenantId, idempotencyKey, request);
+
+        // then
+        assertAll(
+                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST),
+                () -> assertThat(response.getBody()).isInstanceOf(ProblemDetail.class)
+        );
+    }
+
+    @Test
+    void shouldReturnConflictWhenInsufficientFunds() {
+        // given
+        var tenantId = UUID.randomUUID();
+        var idempotencyKey = "idem-key-101";
+        var sourceWalletId = WalletId.create();
+        var request = new CreateTransferRequest(
+                sourceWalletId.value(), UUID.randomUUID(),
+                new BigDecimal("500.00"), "EUR", null
+        );
+
+        given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
+                .willReturn(Result.failure(new TransferError.InsufficientFunds(
+                        sourceWalletId, new BigDecimal("100.00"), new BigDecimal("500.00")
+                )));
+
+        // when
+        var response = transferController.createTransfer(tenantId, idempotencyKey, request);
+
+        // then
+        assertAll(
+                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT),
+                () -> assertThat(response.getBody()).isInstanceOf(ProblemDetail.class)
         );
     }
 }
