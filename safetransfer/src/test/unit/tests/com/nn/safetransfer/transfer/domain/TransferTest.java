@@ -1,0 +1,163 @@
+package com.nn.safetransfer.transfer.domain;
+
+import com.nn.safetransfer.wallet.domain.CurrencyCode;
+import com.nn.safetransfer.wallet.domain.TenantId;
+import com.nn.safetransfer.wallet.domain.WalletId;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+
+import static com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED;
+import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
+
+class TransferTest {
+
+    @Test
+    void shouldCreateCompletedTransfer() {
+        // given
+        var tenantId = TenantId.create();
+        var sourceWalletId = WalletId.create();
+        var destinationWalletId = WalletId.create();
+        var amount = new BigDecimal("100.00");
+        var idempotencyKey = "idem-key-123";
+        var reference = "Test transfer";
+
+        // when
+        var transfer = Transfer.completed(
+                tenantId, sourceWalletId, destinationWalletId,
+                amount, EUR, idempotencyKey, reference
+        );
+
+        // then
+        assertAll(
+                () -> assertThat(transfer.getId()).isNotNull(),
+                () -> assertThat(transfer.getTenantId()).isEqualTo(tenantId),
+                () -> assertThat(transfer.getSourceWalletId()).isEqualTo(sourceWalletId),
+                () -> assertThat(transfer.getDestinationWalletId()).isEqualTo(destinationWalletId),
+                () -> assertThat(transfer.getAmount()).isEqualByComparingTo(amount),
+                () -> assertThat(transfer.getCurrency()).isEqualTo(EUR),
+                () -> assertThat(transfer.getStatus()).isEqualTo(COMPLETED),
+                () -> assertThat(transfer.getIdempotencyKey()).isEqualTo(idempotencyKey),
+                () -> assertThat(transfer.getReference()).isEqualTo(reference),
+                () -> assertThat(transfer.getCreatedAt()).isNotNull()
+        );
+    }
+
+    @Test
+    void shouldCreateCompletedTransferWithNullReference() {
+        // given
+        var sourceWalletId = WalletId.create();
+        var destinationWalletId = WalletId.create();
+
+        // when
+        var transfer = Transfer.completed(
+                TenantId.create(), sourceWalletId, destinationWalletId,
+                new BigDecimal("50.00"), EUR, "key", null
+        );
+
+        // then
+        assertThat(transfer.getReference()).isNull();
+    }
+
+    @Test
+    void shouldThrowWhenAmountIsZero() {
+        // given
+        var sourceWalletId = WalletId.create();
+        var destinationWalletId = WalletId.create();
+
+        // when / then
+        assertThatThrownBy(() -> Transfer.completed(
+                TenantId.create(), sourceWalletId, destinationWalletId,
+                BigDecimal.ZERO, EUR, "key", null
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("amount must be greater than zero");
+    }
+
+    @Test
+    void shouldThrowWhenAmountIsNegative() {
+        // given
+        var sourceWalletId = WalletId.create();
+        var destinationWalletId = WalletId.create();
+
+        // when / then
+        assertThatThrownBy(() -> Transfer.completed(
+                TenantId.create(), sourceWalletId, destinationWalletId,
+                new BigDecimal("-10.00"), EUR, "key", null
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("amount must be greater than zero");
+    }
+
+    @Test
+    void shouldThrowWhenSourceAndDestinationWalletsAreTheSame() {
+        // given
+        var walletId = WalletId.create();
+
+        // when / then
+        assertThatThrownBy(() -> Transfer.completed(
+                TenantId.create(), walletId, walletId,
+                new BigDecimal("10.00"), EUR, "key", null
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Source and destination wallets must be different");
+    }
+
+    @Test
+    void shouldThrowWhenTenantIdIsNull() {
+        // when / then
+        assertThatThrownBy(() -> Transfer.builder()
+                .id(TransferId.newId())
+                .tenantId(null)
+                .sourceWalletId(WalletId.create())
+                .destinationWalletId(WalletId.create())
+                .amount(new BigDecimal("10.00"))
+                .currency(EUR)
+                .status(COMPLETED)
+                .idempotencyKey("key")
+                .createdAt(Instant.now())
+                .build())
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("tenantId must not be null");
+    }
+
+    @Test
+    void shouldThrowWhenAmountIsNull() {
+        // when / then
+        assertThatThrownBy(() -> Transfer.builder()
+                .id(TransferId.newId())
+                .tenantId(TenantId.create())
+                .sourceWalletId(WalletId.create())
+                .destinationWalletId(WalletId.create())
+                .amount(null)
+                .currency(EUR)
+                .status(COMPLETED)
+                .idempotencyKey("key")
+                .createdAt(Instant.now())
+                .build())
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("amount must not be null");
+    }
+
+    @Test
+    void shouldThrowWhenIdempotencyKeyIsNull() {
+        // when / then
+        assertThatThrownBy(() -> Transfer.builder()
+                .id(TransferId.newId())
+                .tenantId(TenantId.create())
+                .sourceWalletId(WalletId.create())
+                .destinationWalletId(WalletId.create())
+                .amount(new BigDecimal("10.00"))
+                .currency(EUR)
+                .status(COMPLETED)
+                .idempotencyKey(null)
+                .createdAt(Instant.now())
+                .build())
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("idempotencyKey must not be null");
+    }
+}
