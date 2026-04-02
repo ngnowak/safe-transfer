@@ -1,27 +1,25 @@
 package com.nn.safetransfer.transfer.application;
 
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
-import com.nn.safetransfer.transfer.application.exception.InsufficientFundsException;
-import com.nn.safetransfer.transfer.application.exception.SameWalletTransferNotAllowedException;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.domain.TransferRepository;
-import com.nn.safetransfer.wallet.application.exception.WalletCurrencyMismatchException;
-import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
-import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import com.nn.safetransfer.wallet.domain.WalletRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import static com.nn.safetransfer.wallet.domain.WalletStatus.ACTIVE;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class TransferService {
@@ -31,12 +29,19 @@ public class TransferService {
     private final TransferRepository transferRepository;
 
     @Transactional
-    public Transfer transfer(TenantId tenantId, String idempotencyKey, CreateTransferRequest request) {
+    public Result<TransferError, Transfer> transfer(TenantId tenantId, String idempotencyKey, CreateTransferRequest request) {
+        log.info("Processing transfer: tenantId={}, idempotencyKey={}, source={}, destination={}, amount={}, currency={}",
+                tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId(), request.amount(), request.currency());
+
         return transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
+                .<Result<TransferError, Transfer>>map(existing -> {
+                    log.info("Returning existing transfer for idempotencyKey={}: transferId={}", idempotencyKey, existing.getId());
+                    return Result.success(existing);
+                })
                 .orElseGet(() -> createTransferSafely(tenantId, idempotencyKey, request));
     }
 
-    private Transfer createTransferSafely(
+    private Result<TransferError, Transfer> createTransferSafely(
             TenantId tenantId,
             String idempotencyKey,
             CreateTransferRequest request
@@ -45,7 +50,7 @@ public class TransferService {
         var destinationWalletId = new WalletId(request.destinationWalletId());
 
         if (sourceWalletId.equals(destinationWalletId)) {
-            throw new SameWalletTransferNotAllowedException();
+            return Result.failure(new TransferError.SameWalletTransfer());
         }
 
         var requestCurrency = CurrencyCode.from(request.currency());
@@ -54,36 +59,51 @@ public class TransferService {
         Wallet secondLocked;
 
         if (sourceWalletId.value().compareTo(destinationWalletId.value()) < 0) {
-            firstLocked = walletRepository.findByIdAndTenantIdForUpdate(sourceWalletId, tenantId)
-                    .orElseThrow(() -> new WalletNotFoundException(sourceWalletId, tenantId));
-            secondLocked = walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId)
-                    .orElseThrow(() -> new WalletNotFoundException(destinationWalletId, tenantId));
+            var first = walletRepository.findByIdAndTenantIdForUpdate(sourceWalletId, tenantId);
+            if (first.isEmpty()) {
+                return Result.failure(new TransferError.WalletNotFound(sourceWalletId, tenantId));
+            }
+            firstLocked = first.get();
+
+            var second = walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId);
+            if (second.isEmpty()) {
+                return Result.failure(new TransferError.WalletNotFound(destinationWalletId, tenantId));
+            }
+            secondLocked = second.get();
         } else {
-            firstLocked = walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId)
-                    .orElseThrow(() -> new WalletNotFoundException(destinationWalletId, tenantId));
-            secondLocked = walletRepository.findByIdAndTenantIdForUpdate(sourceWalletId, tenantId)
-                    .orElseThrow(() -> new WalletNotFoundException(sourceWalletId, tenantId));
+            var first = walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId);
+            if (first.isEmpty()) {
+                return Result.failure(new TransferError.WalletNotFound(destinationWalletId, tenantId));
+            }
+            firstLocked = first.get();
+
+            var second = walletRepository.findByIdAndTenantIdForUpdate(sourceWalletId, tenantId);
+            if (second.isEmpty()) {
+                return Result.failure(new TransferError.WalletNotFound(sourceWalletId, tenantId));
+            }
+            secondLocked = second.get();
         }
 
         var sourceWallet = sourceWalletId.equals(firstLocked.getId()) ? firstLocked : secondLocked;
         var destinationWallet = destinationWalletId.equals(firstLocked.getId()) ? firstLocked : secondLocked;
 
         if (sourceWallet.getStatus() != ACTIVE) {
-            throw new WalletOperationNotAllowedException("Source wallet must be ACTIVE");
+            return Result.failure(new TransferError.WalletNotActive("Source wallet must be ACTIVE"));
         }
         if (destinationWallet.getStatus() != ACTIVE) {
-            throw new WalletOperationNotAllowedException("Destination wallet must be ACTIVE");
+            return Result.failure(new TransferError.WalletNotActive("Destination wallet must be ACTIVE"));
         }
         if (sourceWallet.getCurrency() != requestCurrency) {
-            throw new WalletCurrencyMismatchException(sourceWallet.getCurrency(), requestCurrency);
+            return Result.failure(new TransferError.CurrencyMismatch(sourceWallet.getCurrency(), requestCurrency));
         }
         if (destinationWallet.getCurrency() != requestCurrency) {
-            throw new WalletCurrencyMismatchException(destinationWallet.getCurrency(), requestCurrency);
+            return Result.failure(new TransferError.CurrencyMismatch(destinationWallet.getCurrency(), requestCurrency));
         }
 
         var availableBalance = ledgerEntryRepository.calculateBalance(tenantId, sourceWalletId);
         if (availableBalance.compareTo(request.amount()) < 0) {
-            throw new InsufficientFundsException(sourceWalletId, availableBalance, request.amount());
+            log.warn("Insufficient funds: walletId={}, available={}, requested={}", sourceWalletId, availableBalance, request.amount());
+            return Result.failure(new TransferError.InsufficientFunds(sourceWalletId, availableBalance, request.amount()));
         }
 
         Transfer transfer;
@@ -103,6 +123,7 @@ public class TransferService {
 
         } catch (DataIntegrityViolationException ex) {
             return transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
+                    .<Result<TransferError, Transfer>>map(Result::success)
                     .orElseThrow(() -> ex);
         }
 
@@ -128,6 +149,9 @@ public class TransferService {
                 )
         );
 
-        return transfer;
+        log.info("Transfer completed: transferId={}, source={}, destination={}, amount={}",
+                transfer.getId(), sourceWalletId, destinationWalletId, request.amount());
+
+        return Result.success(transfer);
     }
 }

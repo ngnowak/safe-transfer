@@ -1,7 +1,5 @@
 package com.nn.safetransfer.common.api;
 
-import com.nn.safetransfer.transfer.application.exception.InsufficientFundsException;
-import com.nn.safetransfer.transfer.application.exception.SameWalletTransferNotAllowedException;
 import com.nn.safetransfer.wallet.application.exception.WalletCurrencyMismatchException;
 import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
 import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
@@ -46,34 +44,6 @@ public class GlobalExceptionHandler {
         var problem = ProblemDetail.forStatusAndDetail(BAD_REQUEST, ex.getMessage());
         problem.setTitle("Wallet currency mismatch");
         problem.setType(URI.create("https://api.safetransfer.local/errors/wallet-currency-mismatch"));
-        problem.setProperty("path", request.getRequestURI());
-        return problem;
-    }
-
-    @ExceptionHandler(InsufficientFundsException.class)
-    public ProblemDetail handleInsufficientFunds(
-            InsufficientFundsException ex,
-            HttpServletRequest request
-    ) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                CONFLICT,
-                ex.getMessage()
-        );
-        problem.setTitle("Insufficient funds");
-        problem.setProperty("path", request.getRequestURI());
-        return problem;
-    }
-
-    @ExceptionHandler(SameWalletTransferNotAllowedException.class)
-    public ProblemDetail handleSameWalletTransfer(
-            SameWalletTransferNotAllowedException ex,
-            HttpServletRequest request
-    ) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                BAD_REQUEST,
-                ex.getMessage()
-        );
-        problem.setTitle("Invalid transfer");
         problem.setProperty("path", request.getRequestURI());
         return problem;
     }

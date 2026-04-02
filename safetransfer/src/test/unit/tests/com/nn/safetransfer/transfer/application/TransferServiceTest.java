@@ -1,16 +1,12 @@
 package com.nn.safetransfer.transfer.application;
 
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
 import com.nn.safetransfer.ledger.domain.LedgerEntryType;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
-import com.nn.safetransfer.transfer.application.exception.InsufficientFundsException;
-import com.nn.safetransfer.transfer.application.exception.SameWalletTransferNotAllowedException;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.domain.TransferRepository;
-import com.nn.safetransfer.wallet.application.exception.WalletCurrencyMismatchException;
-import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
-import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
@@ -34,7 +30,6 @@ import com.nn.safetransfer.wallet.domain.WalletStatus;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.USD;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -74,7 +69,10 @@ class TransferServiceTest {
         var result = transferService.transfer(tenantId, idempotencyKey, request);
 
         // then
-        assertThat(result).isEqualTo(existingTransfer);
+        assertAll(
+                () -> assertThat(result.isSuccess()).isTrue(),
+                () -> assertThat(result.getValue()).contains(existingTransfer)
+        );
         verifyNoInteractions(walletRepository);
         verifyNoInteractions(ledgerEntryRepository);
     }
@@ -112,10 +110,12 @@ class TransferServiceTest {
         var result = transferService.transfer(tenantId, idempotencyKey, request);
 
         // then
+        assertThat(result.isSuccess()).isTrue();
+        var transfer = result.getValue().orElseThrow();
         assertAll(
-                () -> assertThat(result).isNotNull(),
-                () -> assertThat(result.getAmount()).isEqualByComparingTo(amount),
-                () -> assertThat(result.getCurrency()).isEqualTo(EUR)
+                () -> assertThat(transfer).isNotNull(),
+                () -> assertThat(transfer.getAmount()).isEqualByComparingTo(amount),
+                () -> assertThat(transfer.getCurrency()).isEqualTo(EUR)
         );
 
         verify(transferRepository).save(any(Transfer.class));
@@ -131,7 +131,7 @@ class TransferServiceTest {
     }
 
     @Test
-    void shouldThrowWhenSourceAndDestinationWalletsAreTheSame() {
+    void shouldReturnFailureWhenSourceAndDestinationWalletsAreTheSame() {
         // given
         var tenantId = TenantId.create();
         var walletId = UUID.randomUUID();
@@ -143,15 +143,19 @@ class TransferServiceTest {
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, "key"))
                 .willReturn(Optional.empty());
 
-        // when / then
-        assertThatThrownBy(() -> transferService.transfer(tenantId, "key", request))
-                .isInstanceOf(SameWalletTransferNotAllowedException.class);
+        // when
+        var result = transferService.transfer(tenantId, "key", request);
 
+        // then
+        assertAll(
+                () -> assertThat(result.isFailure()).isTrue(),
+                () -> assertThat(result.getError()).containsInstanceOf(TransferError.SameWalletTransfer.class)
+        );
         verify(walletRepository, never()).findByIdAndTenantIdForUpdate(any(), any());
     }
 
     @Test
-    void shouldThrowWhenSourceWalletNotFound() {
+    void shouldReturnFailureWhenSourceWalletNotFound() {
         // given
         var tenantId = TenantId.create();
         var sourceWalletId = WalletId.create();
@@ -166,13 +170,18 @@ class TransferServiceTest {
         given(walletRepository.findByIdAndTenantIdForUpdate(any(WalletId.class), eq(tenantId)))
                 .willReturn(Optional.empty());
 
-        // when / then
-        assertThatThrownBy(() -> transferService.transfer(tenantId, "key", request))
-                .isInstanceOf(WalletNotFoundException.class);
+        // when
+        var result = transferService.transfer(tenantId, "key", request);
+
+        // then
+        assertAll(
+                () -> assertThat(result.isFailure()).isTrue(),
+                () -> assertThat(result.getError()).containsInstanceOf(TransferError.WalletNotFound.class)
+        );
     }
 
     @Test
-    void shouldThrowWhenSourceWalletIsNotActive() {
+    void shouldReturnFailureWhenSourceWalletIsNotActive() {
         // given
         var tenantId = TenantId.create();
         var sourceWalletId = WalletId.create();
@@ -193,14 +202,19 @@ class TransferServiceTest {
         given(walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId))
                 .willReturn(Optional.of(destinationWallet));
 
-        // when / then
-        assertThatThrownBy(() -> transferService.transfer(tenantId, "key", request))
-                .isInstanceOf(WalletOperationNotAllowedException.class)
-                .hasMessageContaining("Source wallet must be ACTIVE");
+        // when
+        var result = transferService.transfer(tenantId, "key", request);
+
+        // then
+        assertAll(
+                () -> assertThat(result.isFailure()).isTrue(),
+                () -> assertThat(result.getError()).containsInstanceOf(TransferError.WalletNotActive.class),
+                () -> assertThat(result.getError().orElseThrow().getMessage()).contains("Source wallet must be ACTIVE")
+        );
     }
 
     @Test
-    void shouldThrowWhenSourceWalletCurrencyDoesNotMatchRequest() {
+    void shouldReturnFailureWhenSourceWalletCurrencyDoesNotMatchRequest() {
         // given
         var tenantId = TenantId.create();
         var sourceWalletId = WalletId.create();
@@ -220,13 +234,18 @@ class TransferServiceTest {
         given(walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId))
                 .willReturn(Optional.of(destinationWallet));
 
-        // when / then
-        assertThatThrownBy(() -> transferService.transfer(tenantId, "key", request))
-                .isInstanceOf(WalletCurrencyMismatchException.class);
+        // when
+        var result = transferService.transfer(tenantId, "key", request);
+
+        // then
+        assertAll(
+                () -> assertThat(result.isFailure()).isTrue(),
+                () -> assertThat(result.getError()).containsInstanceOf(TransferError.CurrencyMismatch.class)
+        );
     }
 
     @Test
-    void shouldThrowWhenInsufficientFunds() {
+    void shouldReturnFailureWhenInsufficientFunds() {
         // given
         var tenantId = TenantId.create();
         var sourceWalletId = WalletId.create();
@@ -248,11 +267,15 @@ class TransferServiceTest {
         given(ledgerEntryRepository.calculateBalance(tenantId, sourceWalletId))
                 .willReturn(new BigDecimal("100.00"));
 
-        // when / then
-        assertThatThrownBy(() -> transferService.transfer(tenantId, "key", request))
-                .isInstanceOf(InsufficientFundsException.class)
-                .hasMessageContaining("100")
-                .hasMessageContaining("500");
+        // when
+        var result = transferService.transfer(tenantId, "key", request);
+
+        // then
+        assertAll(
+                () -> assertThat(result.isFailure()).isTrue(),
+                () -> assertThat(result.getError()).containsInstanceOf(TransferError.InsufficientFunds.class),
+                () -> assertThat(result.getError().orElseThrow().getMessage()).contains("100").contains("500")
+        );
     }
 
     @Test
@@ -287,7 +310,10 @@ class TransferServiceTest {
         var result = transferService.transfer(tenantId, idempotencyKey, request);
 
         // then
-        assertThat(result).isEqualTo(existingTransfer);
+        assertAll(
+                () -> assertThat(result.isSuccess()).isTrue(),
+                () -> assertThat(result.getValue()).contains(existingTransfer)
+        );
     }
 
     @Test
@@ -303,7 +329,7 @@ class TransferServiceTest {
                 .willReturn(Optional.empty());
 
         // when / then
-        assertThatThrownBy(() -> transferService.transfer(tenantId, "key", request))
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> transferService.transfer(tenantId, "key", request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("INVALID");
     }

@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+@Slf4j
 @Tag(name = "Wallet", description = "Wallet management endpoints")
 @RequiredArgsConstructor
 @RestController
@@ -51,8 +53,10 @@ public class WalletController {
             @PathVariable UUID tenantId,
             @Valid @RequestBody CreateWalletRequest request
     ) {
+        log.info("Creating wallet for tenantId={}, customerId={}, currency={}", tenantId, request.customerId(), request.currency());
         var command = createWalletCommandMapper.toCreateWalletCommand(tenantId, request);
         var wallet = createWalletUseCase.handle(command);
+        log.info("Wallet created: walletId={}, tenantId={}", wallet.getId(), tenantId);
 
         return walletResponseMapper.toWalletResponse(wallet);
     }
@@ -63,6 +67,7 @@ public class WalletController {
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
     ) {
+        log.info("Getting wallet: walletId={}, tenantId={}", walletId, tenantId);
         var command = GetWalletQuery.builder()
                 .tenantId(new TenantId(tenantId))
                 .walletId(new WalletId(walletId))
@@ -78,6 +83,7 @@ public class WalletController {
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
     ) {
+        log.info("Getting balance: walletId={}, tenantId={}", walletId, tenantId);
         var query = GetBalanceQuery.builder()
                 .tenantId(new TenantId(tenantId))
                 .walletId(new WalletId(walletId))
@@ -94,11 +100,13 @@ public class WalletController {
             @PathVariable UUID walletId,
             @Valid @RequestBody DepositRequest request
     ) {
+        log.info("Depositing: walletId={}, tenantId={}, amount={}, currency={}", walletId, tenantId, request.amount(), request.currency());
         var ledgerEntry = depositService.deposit(
                 new TenantId(tenantId),
                 new WalletId(walletId),
                 request
         );
+        log.info("Deposit completed: ledgerEntryId={}, walletId={}", ledgerEntry.getId(), walletId);
 
         return depositResponseMapper.toDepositResponse(ledgerEntry);
     }
