@@ -1,0 +1,81 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-create-outbox-event-table
+      author: codex
+      changes:
+        - createTable:
+            tableName: outbox_event
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_outbox_event
+                    nullable: false
+              - column:
+                  name: tenant_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: aggregate_type
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: aggregate_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: event_type
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: payload
+                  type: jsonb
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: occurred_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: published_at
+                  type: timestamp with time zone
+              - column:
+                  name: retry_count
+                  type: integer
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: correlation_id
+                  type: text
+              - column:
+                  name: causation_id
+                  type: text
+
+        - createIndex:
+            tableName: outbox_event
+            indexName: idx_outbox_event_status_occurred_at
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: occurred_at
+
+        - createIndex:
+            tableName: outbox_event
+            indexName: idx_outbox_event_tenant_id
+            columns:
+              - column:
+                  name: tenant_id

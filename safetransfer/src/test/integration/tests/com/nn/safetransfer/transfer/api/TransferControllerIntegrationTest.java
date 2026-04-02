@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
 import com.nn.safetransfer.common.api.ErrorDto;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
+import com.nn.safetransfer.outbox.infrastructure.persistence.SpringDataOutboxEventRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.api.dto.TransferResponse;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
@@ -19,6 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
+import static com.nn.safetransfer.outbox.domain.OutboxAggregateType.TRANSFER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -46,9 +49,13 @@ class TransferControllerIntegrationTest {
     @Autowired
     private SpringDataLedgerEntryRepository ledgerEntryRepository;
 
+    @Autowired
+    private SpringDataOutboxEventRepository outboxEventRepository;
+
     @AfterEach
     void cleanUp() {
         ledgerEntryRepository.deleteAll();
+        outboxEventRepository.deleteAll();
         transferRepository.deleteAll();
         walletRepository.deleteAll();
     }
@@ -112,6 +119,19 @@ class TransferControllerIntegrationTest {
         var ledgerEntries = ledgerEntryRepository.findAll();
         assertThat(ledgerEntries).hasSize(3);
 
+        var outboxEvents = outboxEventRepository.findAll();
+        assertThat(outboxEvents).hasSize(1);
+        var outboxEvent = outboxEvents.getFirst();
+        assertAll(
+                () -> assertThat(outboxEvent.getEventType()).isEqualTo(TRANSFER_COMPLETED.name()),
+                () -> assertThat(outboxEvent.getAggregateType()).isEqualTo(TRANSFER.name()),
+                () -> assertThat(outboxEvent.getAggregateId()).isEqualTo(UUID.fromString(response.transferId())),
+                () -> assertThat(outboxEvent.getTenantId()).isEqualTo(tenantId),
+                () -> assertThat(outboxEvent.getStatus()).isEqualTo("NEW"),
+                () -> assertThat(outboxEvent.getPayload()).contains(response.transferId()),
+                () -> assertThat(outboxEvent.getPayload()).contains(tenantId.toString())
+        );
+
         // verify balances
         var sourceBalance = ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(sourceWalletId));
         var destinationBalance = ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(destinationWalletId));
@@ -166,6 +186,12 @@ class TransferControllerIntegrationTest {
         assertThat(transferRepository.findAll()).hasSize(1);
         // 1 deposit + 1 debit + 1 credit = 3
         assertThat(ledgerEntryRepository.findAll()).hasSize(3);
+
+        var outboxEvents = outboxEventRepository.findAll();
+        var outBoxEventsForTransfer = outboxEvents.stream()
+                .filter(outboxEventJpa -> outboxEventJpa.getAggregateId().toString().equals(secondResponse.transferId()))
+                .toList();
+        assertThat(outBoxEventsForTransfer).hasSize(1);
     }
 
     @Test

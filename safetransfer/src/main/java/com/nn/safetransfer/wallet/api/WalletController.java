@@ -93,7 +93,7 @@ public class WalletController {
         return balanceResponseMapper.toBalanceResponse(result);
     }
 
-    @Operation(summary = "Deposits")
+    @Operation(summary = "Deposits money")
     @PostMapping("/{walletId}/deposits")
     public DepositResponse deposit(
             @PathVariable UUID tenantId,

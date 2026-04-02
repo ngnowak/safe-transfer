@@ -1,9 +1,14 @@
 package com.nn.safetransfer.transfer.application;
 
-import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
 import com.nn.safetransfer.ledger.domain.LedgerEntryType;
+import com.nn.safetransfer.outbox.application.OutboxEventFactory;
+import com.nn.safetransfer.outbox.domain.EventType;
+import com.nn.safetransfer.outbox.domain.OutboxAggregateType;
+import com.nn.safetransfer.outbox.domain.OutboxEvent;
+import com.nn.safetransfer.outbox.domain.OutboxEventRepository;
+import com.nn.safetransfer.outbox.domain.OutboxStatus;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.domain.TransferRepository;
@@ -50,6 +55,12 @@ class TransferServiceTest {
 
     @Mock
     private TransferRepository transferRepository;
+
+    @Mock
+    private OutboxEventRepository outboxEventRepository;
+
+    @Mock
+    private OutboxEventFactory outboxEventFactory;
 
     @InjectMocks
     private TransferService transferService;
@@ -105,6 +116,10 @@ class TransferServiceTest {
                 .willAnswer(inv -> inv.getArgument(0));
         given(ledgerEntryRepository.save(any(LedgerEntry.class)))
                 .willAnswer(inv -> inv.getArgument(0));
+        given(outboxEventFactory.transferCompleted(any(Transfer.class)))
+                .willAnswer(inv -> buildOutboxEvent(tenantId, inv.getArgument(0)));
+        given(outboxEventRepository.save(any(OutboxEvent.class)))
+                .willAnswer(inv -> inv.getArgument(0));
 
         // when
         var result = transferService.transfer(tenantId, idempotencyKey, request);
@@ -128,6 +143,8 @@ class TransferServiceTest {
                 () -> assertThat(ledgerEntries.get(0).getType()).isEqualTo(LedgerEntryType.DEBIT),
                 () -> assertThat(ledgerEntries.get(1).getType()).isEqualTo(LedgerEntryType.CREDIT)
         );
+        verify(outboxEventFactory).transferCompleted(transfer);
+        verify(outboxEventRepository).save(any(OutboxEvent.class));
     }
 
     @Test
@@ -361,6 +378,22 @@ class TransferServiceTest {
                 .currency(currency)
                 .status(WalletStatus.ACTIVE)
                 .createdAt(java.time.Instant.now())
+                .build();
+    }
+
+    private OutboxEvent buildOutboxEvent(TenantId tenantId, Transfer transfer) {
+        return OutboxEvent.builder()
+                .id(UUID.randomUUID())
+                .tenantId(tenantId.value())
+                .aggregateType(OutboxAggregateType.TRANSFER)
+                .aggregateId(transfer.getId().value())
+                .eventType(EventType.TRANSFER_COMPLETED)
+                .payload("{\"transferId\":\"%s\"}".formatted(transfer.getId().value()))
+                .status(OutboxStatus.NEW)
+                .occurredAt(java.time.Instant.now())
+                .retryCount(0)
+                .correlationId(transfer.getId().value().toString())
+                .causationId(transfer.getIdempotencyKey())
                 .build();
     }
 }

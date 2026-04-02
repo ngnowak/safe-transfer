@@ -3,6 +3,8 @@ package com.nn.safetransfer.transfer.application;
 import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
+import com.nn.safetransfer.outbox.application.OutboxEventFactory;
+import com.nn.safetransfer.outbox.domain.OutboxEventRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.domain.TransferRepository;
@@ -27,6 +29,8 @@ public class TransferService {
     private final WalletRepository walletRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final TransferRepository transferRepository;
+    private final OutboxEventRepository outboxEventRepository;
+    private final OutboxEventFactory outboxEventFactory;
 
     @Transactional
     public Result<TransferError, Transfer> transfer(TenantId tenantId, String idempotencyKey, CreateTransferRequest request) {
@@ -148,6 +152,8 @@ public class TransferService {
                         ledgerReference
                 )
         );
+
+        outboxEventRepository.save(outboxEventFactory.transferCompleted(transfer));
 
         log.info("Transfer completed: transferId={}, source={}, destination={}, amount={}",
                 transfer.getId(), sourceWalletId, destinationWalletId, request.amount());

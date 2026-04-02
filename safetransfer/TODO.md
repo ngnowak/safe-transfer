@@ -25,9 +25,9 @@ Do these in order:
 
 transfer endpoint ok
 idempotency ok
-concurrency test ok 
+concurrency test ok
+balance endpoint from ledger check ok
 
-balance endpoint from ledger check ?
 outbox + async audit event
 diagrams + README polish
 metrics/logging polish
