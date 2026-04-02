@@ -3,7 +3,7 @@ package com.nn.safetransfer.transfer.api;
 import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.api.dto.TransferResponse;
-import com.nn.safetransfer.transfer.api.mapper.TransferResponseMapper;
+import com.nn.safetransfer.transfer.api.mapper.TransferResultMapper;
 import com.nn.safetransfer.transfer.application.TransferError;
 import com.nn.safetransfer.transfer.application.TransferService;
 import com.nn.safetransfer.transfer.domain.Transfer;
@@ -15,7 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -24,6 +24,7 @@ import java.util.UUID;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -34,7 +35,7 @@ class TransferControllerTest {
     private TransferService transferService;
 
     @Mock
-    private TransferResponseMapper transferResponseMapper;
+    private TransferResultMapper transferResultMapper;
 
     @InjectMocks
     private TransferController transferController;
@@ -67,11 +68,10 @@ class TransferControllerTest {
                 .reference("Payment")
                 .createdAt(Instant.now())
                 .build();
-
+        Result<TransferError, Transfer> result = Result.success(transfer);
         given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
-                .willReturn(Result.success(transfer));
-        given(transferResponseMapper.toResponse(transfer))
-                .willReturn(expectedResponse);
+                .willReturn(result);
+        given(transferResultMapper.toTransferResponse(result)).willReturn(expectedResponse);
 
         // when
         var response = transferController.createTransfer(tenantId, idempotencyKey, request);
@@ -81,7 +81,7 @@ class TransferControllerTest {
                 () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
                 () -> assertThat(response.getBody()).isEqualTo(expectedResponse),
                 () -> verify(transferService).transfer(new TenantId(tenantId), idempotencyKey, request),
-                () -> verify(transferResponseMapper).toResponse(transfer)
+                () -> verify(transferResultMapper).toTransferResponse(result)
         );
     }
 
@@ -96,16 +96,24 @@ class TransferControllerTest {
                 new BigDecimal("50.00"), "EUR", null
         );
 
-        given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
-                .willReturn(Result.failure(new TransferError.WalletNotFound(walletId, new TenantId(tenantId))));
+        Result<TransferError, Transfer> result = Result.failure(new TransferError.WalletNotFound(walletId, new TenantId(tenantId)));
+        var errorMessage = result.getError().orElseThrow().getMessage();
+        var exception = new ResponseStatusException(HttpStatus.NOT_FOUND, errorMessage);
+        given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request)).willReturn(result);
+        given(transferResultMapper.toTransferResponse(result)).willThrow(exception);
 
         // when
-        var response = transferController.createTransfer(tenantId, idempotencyKey, request);
+        var thrown = assertThrows(
+                ResponseStatusException.class,
+                () -> transferController.createTransfer(tenantId, idempotencyKey, request)
+        );
 
         // then
         assertAll(
-                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND),
-                () -> assertThat(response.getBody()).isInstanceOf(ProblemDetail.class)
+                () -> assertThat(thrown.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND),
+                () -> assertThat(thrown.getReason()).isEqualTo(errorMessage),
+                () -> verify(transferService).transfer(new TenantId(tenantId), idempotencyKey, request),
+                () -> verify(transferResultMapper).toTransferResponse(result)
         );
     }
 
@@ -120,16 +128,25 @@ class TransferControllerTest {
                 new BigDecimal("50.00"), "EUR", null
         );
 
+        Result<TransferError, Transfer> result = Result.failure(new TransferError.SameWalletTransfer());
+        var errorMessage = result.getError().orElseThrow().getMessage();
+        var exception = new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
         given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
-                .willReturn(Result.failure(new TransferError.SameWalletTransfer()));
+                .willReturn(result);
+        given(transferResultMapper.toTransferResponse(result)).willThrow(exception);
 
         // when
-        var response = transferController.createTransfer(tenantId, idempotencyKey, request);
+        var thrown = assertThrows(
+                ResponseStatusException.class,
+                () -> transferController.createTransfer(tenantId, idempotencyKey, request)
+        );
 
         // then
         assertAll(
-                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST),
-                () -> assertThat(response.getBody()).isInstanceOf(ProblemDetail.class)
+                () -> assertThat(thrown.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST),
+                () -> assertThat(thrown.getReason()).isEqualTo(errorMessage),
+                () -> verify(transferService).transfer(new TenantId(tenantId), idempotencyKey, request),
+                () -> verify(transferResultMapper).toTransferResponse(result)
         );
     }
 
@@ -144,18 +161,27 @@ class TransferControllerTest {
                 new BigDecimal("500.00"), "EUR", null
         );
 
+        Result<TransferError, Transfer> result = Result.failure(new TransferError.InsufficientFunds(
+                sourceWalletId, new BigDecimal("100.00"), new BigDecimal("500.00")
+        ));
+        var errorMessage = result.getError().orElseThrow().getMessage();
+        var exception = new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
         given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
-                .willReturn(Result.failure(new TransferError.InsufficientFunds(
-                        sourceWalletId, new BigDecimal("100.00"), new BigDecimal("500.00")
-                )));
+                .willReturn(result);
+        given(transferResultMapper.toTransferResponse(result)).willThrow(exception);
 
         // when
-        var response = transferController.createTransfer(tenantId, idempotencyKey, request);
+        var thrown = assertThrows(
+                ResponseStatusException.class,
+                () -> transferController.createTransfer(tenantId, idempotencyKey, request)
+        );
 
         // then
         assertAll(
-                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT),
-                () -> assertThat(response.getBody()).isInstanceOf(ProblemDetail.class)
+                () -> assertThat(thrown.getStatusCode()).isEqualTo(HttpStatus.CONFLICT),
+                () -> assertThat(thrown.getReason()).isEqualTo(errorMessage),
+                () -> verify(transferService).transfer(new TenantId(tenantId), idempotencyKey, request),
+                () -> verify(transferResultMapper).toTransferResponse(result)
         );
     }
 }

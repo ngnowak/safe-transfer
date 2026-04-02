@@ -47,4 +47,15 @@ public sealed interface TransferError {
                     .formatted(walletId.value(), available, requested);
         }
     }
+
+    record OtherError(String message) implements TransferError {
+        public OtherError(final Throwable throwable) {
+            this(throwable.getMessage());
+        }
+
+        @Override
+        public String getMessage() {
+            return message;
+        }
+    }
 }

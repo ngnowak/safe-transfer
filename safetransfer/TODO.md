@@ -1,8 +1,5 @@
 
 
-
-* Add logging
-* Add result
 * no illegal exception
 * start testing by unit tests
 * start testing by integration tests
@@ -11,8 +8,8 @@ Needed use cases:
 - wallet creation OK
 - get wallet OK
 - deposit OK
-- transfer between wallets
-- balance from ledger
+- transfer between wallets ?
+- balance from ledger ?
 - idempotency
 - multitenancy
 - transactional outbox

@@ -2,6 +2,7 @@ package com.nn.safetransfer.wallet.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
+import com.nn.safetransfer.common.api.ErrorDto;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
@@ -24,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebSliceTest
@@ -109,13 +109,20 @@ class WalletControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
-        // when / then
-        mockMvc.perform(post(WALLETS_PATH, tenantId)
+        // when
+        var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Invalid request"))
-                .andExpect(jsonPath("$.detail").value("Wallet already exists for this tenant, customer, and currency"));
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isEqualTo("Wallet already exists for this tenant, customer, and currency"),
+                () -> assertThat(error.errors()).isNull()
+        );
     }
 
     @Test
@@ -124,12 +131,20 @@ class WalletControllerIntegrationTest {
         var tenantId = UUID.randomUUID();
         var request = new CreateWalletRequest(UUID.randomUUID(), "");
 
-        // when / then
-        mockMvc.perform(post(WALLETS_PATH, tenantId)
+        // when
+        var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Validation failed"));
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isNotBlank(),
+                () -> assertThat(error.errors()).contains("currency: must not be blank")
+        );
     }
 
     @Test
@@ -140,12 +155,20 @@ class WalletControllerIntegrationTest {
                 {"customerId": null, "currency": "EUR"}
                 """;
 
-        // when / then
-        mockMvc.perform(post(WALLETS_PATH, tenantId)
+        // when
+        var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Validation failed"));
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isNotBlank(),
+                () -> assertThat(error.errors()).contains("customerId: must not be null")
+        );
     }
 
     @Test
@@ -154,13 +177,20 @@ class WalletControllerIntegrationTest {
         var tenantId = UUID.randomUUID();
         var request = new CreateWalletRequest(UUID.randomUUID(), "INVALID");
 
-        // when / then
-        mockMvc.perform(post(WALLETS_PATH, tenantId)
+        // when
+        var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Invalid request"))
-                .andExpect(jsonPath("$.detail").exists());
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isEqualTo("No currency code for code: `INVALID`"),
+                () -> assertThat(error.errors()).isNull()
+        );
     }
 
     @Test
@@ -203,11 +233,18 @@ class WalletControllerIntegrationTest {
         var tenantId = UUID.randomUUID();
         var walletId = UUID.randomUUID();
 
-        // when / then
-        mockMvc.perform(get(WALLET_PATH, tenantId, walletId))
+        // when
+        var result = mockMvc.perform(get(WALLET_PATH, tenantId, walletId))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("Wallet not found"))
-                .andExpect(jsonPath("$.detail").exists());
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).contains("was not found"),
+                () -> assertThat(error.errors()).isNull()
+        );
     }
 
     @Test
@@ -307,12 +344,20 @@ class WalletControllerIntegrationTest {
         var walletId = UUID.randomUUID();
         var depositRequest = new DepositRequest(new BigDecimal("100.00"), "EUR", null);
 
-        // when / then
-        mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
+        // when
+        var result = mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(depositRequest)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("Wallet not found"));
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).contains("was not found"),
+                () -> assertThat(error.errors()).isNull()
+        );
     }
 
     @Test
@@ -322,12 +367,20 @@ class WalletControllerIntegrationTest {
         var walletId = createWallet(tenantId, "EUR");
         var depositRequest = new DepositRequest(new BigDecimal("100.00"), "USD", null);
 
-        // when / then
-        mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
+        // when
+        var result = mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(depositRequest)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Wallet currency mismatch"));
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).contains("Wallet currency is"),
+                () -> assertThat(error.errors()).isNull()
+        );
     }
 
     @Test
@@ -337,11 +390,20 @@ class WalletControllerIntegrationTest {
         var walletId = createWallet(tenantId, "EUR");
         var depositRequest = new DepositRequest(new BigDecimal("0.00"), "EUR", null);
 
-        // when / then
-        mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
+        // when
+        var result = mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(depositRequest)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isNotBlank(),
+                () -> assertThat(error.errors()).contains("amount: must be greater than or equal to 0.01")
+        );
     }
 
     @Test
@@ -422,10 +484,18 @@ class WalletControllerIntegrationTest {
         var tenantId = UUID.randomUUID();
         var walletId = UUID.randomUUID();
 
-        // when / then
-        mockMvc.perform(get(BALANCE_PATH, tenantId, walletId))
+        // when
+        var result = mockMvc.perform(get(BALANCE_PATH, tenantId, walletId))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("Wallet not found"));
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).contains("was not found"),
+                () -> assertThat(error.errors()).isNull()
+        );
     }
 
     @Test
@@ -494,5 +564,9 @@ class WalletControllerIntegrationTest {
                                 new DepositRequest(new BigDecimal(amount), currency, null)
                         )))
                 .andExpect(status().isOk());
+    }
+
+    private ErrorDto readError(String responseBody) throws Exception {
+        return objectMapper.readValue(responseBody, ErrorDto.class);
     }
 }
