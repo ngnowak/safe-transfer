@@ -2,8 +2,10 @@ package com.nn.safetransfer.transfer.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
+import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEventRepository;
 import com.nn.safetransfer.common.api.ErrorDto;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
+import com.nn.safetransfer.outbox.application.OutboxPublisher;
 import com.nn.safetransfer.outbox.infrastructure.persistence.SpringDataOutboxEventRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.api.dto.TransferResponse;
@@ -52,8 +54,15 @@ class TransferControllerIntegrationTest {
     @Autowired
     private SpringDataOutboxEventRepository outboxEventRepository;
 
+    @Autowired
+    private SpringDataAuditEventRepository auditEventRepository;
+
+    @Autowired
+    private OutboxPublisher outboxPublisher;
+
     @AfterEach
     void cleanUp() {
+        auditEventRepository.deleteAll();
         ledgerEntryRepository.deleteAll();
         outboxEventRepository.deleteAll();
         transferRepository.deleteAll();
@@ -137,6 +146,62 @@ class TransferControllerIntegrationTest {
         var destinationBalance = ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(destinationWalletId));
         assertThat(sourceBalance).isEqualByComparingTo(new BigDecimal("750.00"));
         assertThat(destinationBalance).isEqualByComparingTo(new BigDecimal("250.00"));
+    }
+
+    @Test
+    void shouldPublishTransferOutboxEventAndCreateAuditEvent() throws Exception {
+        // given
+        var tenantId = UUID.randomUUID();
+        var sourceWalletId = createWallet(tenantId, "EUR");
+        var destinationWalletId = createWallet(tenantId, "EUR");
+        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(new BigDecimal("150.00"))
+                .currency("EUR")
+                .reference("Async audit")
+                .build();
+
+        var transferResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        var transferResponse = objectMapper.readValue(
+                transferResult.getResponse().getContentAsString(), TransferResponse.class
+        );
+        var createdOutboxEvent = outboxEventRepository.findAll().getFirst();
+
+        // when
+        var publishedCount = outboxPublisher.publishPending(10);
+
+        // then
+        assertThat(publishedCount).isEqualTo(1);
+
+        var updatedOutboxEvent = outboxEventRepository.findById(createdOutboxEvent.getId()).orElseThrow();
+        assertAll(
+                () -> assertThat(updatedOutboxEvent.getStatus()).isEqualTo("PUBLISHED"),
+                () -> assertThat(updatedOutboxEvent.getPublishedAt()).isNotNull()
+        );
+
+        var auditEvents = auditEventRepository.findAll();
+        assertThat(auditEvents).hasSize(1);
+        var auditEvent = auditEvents.getFirst();
+        assertAll(
+                () -> assertThat(auditEvent.getSourceEventId()).isEqualTo(createdOutboxEvent.getId()),
+                () -> assertThat(auditEvent.getTenantId()).isEqualTo(tenantId),
+                () -> assertThat(auditEvent.getAggregateType()).isEqualTo(TRANSFER.name()),
+                () -> assertThat(auditEvent.getAggregateId()).isEqualTo(UUID.fromString(transferResponse.transferId())),
+                () -> assertThat(auditEvent.getEventType()).isEqualTo(TRANSFER_COMPLETED.name()),
+                () -> assertThat(auditEvent.getPayload()).contains(transferResponse.transferId()),
+                () -> assertThat(auditEvent.getRecordedAt()).isNotNull(),
+                () -> assertThat(auditEvent.getCorrelationId()).isEqualTo(createdOutboxEvent.getCorrelationId()),
+                () -> assertThat(auditEvent.getCausationId()).isEqualTo(createdOutboxEvent.getCausationId())
+        );
     }
 
     @Test

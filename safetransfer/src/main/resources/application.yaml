@@ -29,3 +29,10 @@ springdoc:
 
 server:
   port: 8080
+
+safetransfer:
+  outbox:
+    publisher:
+      fixed-delay: 5000
+      batch-size: 100
+      max-retries: 3
