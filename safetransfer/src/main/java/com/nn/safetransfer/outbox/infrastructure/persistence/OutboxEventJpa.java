@@ -22,7 +22,7 @@ import static lombok.AccessLevel.PROTECTED;
 @Table(
         name = "outbox_event",
         indexes = {
-                @Index(name = "idx_outbox_event_status_occurred_at", columnList = "status, occurred_at"),
+                @Index(name = "idx_outbox_event_status_retry_occurred_at", columnList = "status, retry_count, occurred_at"),
                 @Index(name = "idx_outbox_event_tenant_id", columnList = "tenant_id")
         }
 )

@@ -1,0 +1,61 @@
+@startuml
+title SafeTransfer - Component View
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor Client
+
+package "SafeTransfer" {
+  [TransferController] as TC
+  [WalletController] as WC
+
+  [TransferService] as TS
+  [WalletApplicationService] as WAS
+  [DepositService] as DS
+
+  [TransferRepository] as TR
+  [WalletRepository] as WR
+  [LedgerEntryRepository] as LR
+
+  [OutboxEventRepository] as OR
+  [OutboxPublisher] as OP
+  [AuditConsumer] as AC
+  [AuditEventRepository] as AR
+}
+
+database "PostgreSQL" as PG
+collections "outbox_event" as OUTBOX
+collections "audit_event" as AUDIT
+collections "transfer / wallet / ledger tables" as CORE
+
+Client --> TC
+Client --> WC
+
+TC --> TS
+WC --> WAS
+WC --> DS
+
+TS --> TR
+TS --> LR
+TS --> OR
+
+WAS --> WR
+DS --> WR
+DS --> LR
+
+TR --> CORE
+WR --> CORE
+LR --> CORE
+OR --> OUTBOX
+AR --> AUDIT
+
+OUTBOX --> PG
+AUDIT --> PG
+CORE --> PG
+
+OP --> OR
+OP --> AC
+AC --> AR
+
+@enduml

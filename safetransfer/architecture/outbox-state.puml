@@ -1,0 +1,16 @@
+@startuml
+title Outbox Event Lifecycle
+
+[*] --> NEW : business tx committed
+
+NEW --> PUBLISHED : publish success
+NEW --> FAILED : publish failure
+
+FAILED --> PUBLISHED : retry success
+FAILED --> FAILED : retry failure and retryCount < maxRetries
+FAILED --> FATAL : retry failure and retryCount >= maxRetries
+
+PUBLISHED --> [*]
+FATAL --> [*]
+
+@enduml
