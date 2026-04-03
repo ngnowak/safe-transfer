@@ -12,6 +12,7 @@ import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.application.CreateWalletCommand;
 import com.nn.safetransfer.wallet.application.DepositService;
 import com.nn.safetransfer.wallet.application.WalletApplicationService;
+import com.nn.safetransfer.wallet.application.WalletError;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
@@ -225,20 +226,19 @@ class ConcurrencyIntegrationTest {
         var pool = Executors.newFixedThreadPool(threadCount);
 
         // when
-        var futures = new ArrayList<Future<WalletResult>>();
+        var futures = new ArrayList<Future<Result<WalletError, Wallet>>>();
         for (int i = 0; i < threadCount; i++) {
             futures.add(pool.submit(() -> {
                 readyLatch.countDown();
                 startLatch.await();
                 try {
-                    var wallet = transactionTemplate.execute(status ->
+                    return transactionTemplate.execute(status ->
                             walletApplicationService.handle(
                                     new CreateWalletCommand(tenantId, customerId, currency)
                             )
                     );
-                    return new WalletResult(true, wallet, null);
                 } catch (Exception e) {
-                    return new WalletResult(false, null, e);
+                    return Result.failure(new WalletError.OtherError(e.getMessage()));
                 }
             }));
         }
@@ -246,7 +246,7 @@ class ConcurrencyIntegrationTest {
         readyLatch.await();
         startLatch.countDown();
 
-        var results = new ArrayList<WalletResult>();
+        var results = new ArrayList<Result<WalletError, Wallet>>();
         for (var future : futures) {
             results.add(future.get());
         }
@@ -256,7 +256,8 @@ class ConcurrencyIntegrationTest {
         var wallets = walletRepository.findAll();
         assertThat(wallets).hasSize(1);
 
-        long successes = results.stream().filter(r -> r.success).count();
+        long successes = results.stream()
+                .filter(Result::isSuccess).count();
         assertThat(successes).isGreaterThanOrEqualTo(1);
     }
 
@@ -375,7 +376,7 @@ class ConcurrencyIntegrationTest {
         return transactionTemplate.execute(status ->
                 walletApplicationService.handle(
                         new CreateWalletCommand(tenantId, CustomerId.create(), CurrencyCode.EUR)
-                )
+                ).getValue().orElseThrow(() -> new IllegalArgumentException("cannot get wallet"))
         );
     }
 
@@ -405,8 +406,7 @@ class ConcurrencyIntegrationTest {
                     )
             );
             return switch (result) {
-                case Result.Success<TransferError, Transfer> success ->
-                        new TransferResult(true, success.value(), null);
+                case Result.Success<TransferError, Transfer> success -> new TransferResult(true, success.value(), null);
                 case Result.Failure<TransferError, Transfer> failure ->
                         new TransferResult(false, null, failure.error());
             };
@@ -423,6 +423,9 @@ class ConcurrencyIntegrationTest {
         return results;
     }
 
-    private record TransferResult(boolean success, Transfer transfer, TransferError error) {}
-    private record WalletResult(boolean success, Wallet wallet, Exception exception) {}
+    private record TransferResult(boolean success, Transfer transfer, TransferError error) {
+    }
+
+    private record WalletResult(boolean success, Wallet wallet, Exception exception) {
+    }
 }

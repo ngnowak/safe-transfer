@@ -102,7 +102,9 @@ class WalletControllerIntegrationTest {
         // given
         var tenantId = UUID.randomUUID();
         var customerId = UUID.randomUUID();
-        var request = new CreateWalletRequest(customerId, "EUR");
+        var currency = "EUR";
+        var request = new CreateWalletRequest(customerId, currency);
+        var expectedErrorMsg = "Wallet already exists for tenant %s, customer %s, and currency %s".formatted(tenantId, customerId, currency);
 
         mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
@@ -120,7 +122,7 @@ class WalletControllerIntegrationTest {
         var error = readError(result.getResponse().getContentAsString());
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).isEqualTo("Wallet already exists for this tenant, customer, and currency"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }

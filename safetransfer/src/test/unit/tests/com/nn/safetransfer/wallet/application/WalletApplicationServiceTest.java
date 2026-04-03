@@ -1,6 +1,5 @@
 package com.nn.safetransfer.wallet.application;
 
-import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
@@ -15,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static com.nn.safetransfer.wallet.domain.WalletStatus.ACTIVE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -56,12 +54,13 @@ class WalletApplicationServiceTest {
                 () -> assertThat(savedWallet.getCustomerId()).isEqualTo(customerId),
                 () -> assertThat(savedWallet.getCurrency()).isEqualTo(EUR),
                 () -> assertThat(savedWallet.getStatus()).isEqualTo(ACTIVE),
-                () -> assertThat(result).isEqualTo(savedWallet)
+                () -> assertThat(result.isSuccess()).isTrue(),
+                () -> assertThat(result.getValue()).hasValue(savedWallet)
         );
     }
 
     @Test
-    void shouldThrowWhenWalletAlreadyExists() {
+    void shouldReturnFailureWhenWalletAlreadyExists() {
         // given
         var tenantId = TenantId.create();
         var customerId = CustomerId.create();
@@ -69,12 +68,14 @@ class WalletApplicationServiceTest {
 
         given(walletRepository.existsByTenantIdAndCustomerIdAndCurrency(tenantId, customerId, EUR))
                 .willReturn(true);
+        var error = new WalletError.DuplicateWallet(tenantId, customerId, command.currency());
 
-        // when / then
-        assertThatThrownBy(() -> walletApplicationService.handle(command))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Wallet already exists for this tenant, customer, and currency");
+        // when
+        var result = walletApplicationService.handle(command);
 
+        // then
+        assertThat(result.isFailure()).isTrue();
+        assertThat(result.getError()).hasValue(error);
         verify(walletRepository, never()).save(any());
     }
 }

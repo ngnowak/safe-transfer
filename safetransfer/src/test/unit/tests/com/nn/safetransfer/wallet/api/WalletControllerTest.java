@@ -1,5 +1,6 @@
 package com.nn.safetransfer.wallet.api;
 
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.wallet.api.dto.BalanceResponse;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
@@ -9,6 +10,7 @@ import com.nn.safetransfer.wallet.api.dto.WalletResponse;
 import com.nn.safetransfer.wallet.api.mapper.BalanceResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.DepositResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.WalletResponseMapper;
+import com.nn.safetransfer.wallet.api.mapper.WalletResultMapper;
 import com.nn.safetransfer.wallet.application.BalanceResult;
 import com.nn.safetransfer.wallet.application.CreateWalletCommand;
 import com.nn.safetransfer.wallet.application.CreateWalletUseCase;
@@ -17,6 +19,7 @@ import com.nn.safetransfer.wallet.application.GetBalanceQuery;
 import com.nn.safetransfer.wallet.application.GetWalletQuery;
 import com.nn.safetransfer.wallet.application.QueryBalanceUseCase;
 import com.nn.safetransfer.wallet.application.QueryWalletUseCase;
+import com.nn.safetransfer.wallet.application.WalletError;
 import com.nn.safetransfer.wallet.application.mapper.CreateWalletCommandMapper;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
@@ -32,6 +35,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import static com.nn.safetransfer.common.domain.result.Result.success;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -48,6 +52,9 @@ class WalletControllerTest {
 
     @Mock
     private WalletResponseMapper walletResponseMapper;
+
+    @Mock
+    private WalletResultMapper walletResultMapper;
 
     @Mock
     private CreateWalletCommandMapper createWalletCommandMapper;
@@ -86,9 +93,10 @@ class WalletControllerTest {
                 .status("ACTIVE")
                 .build();
 
+        Result<WalletError, Wallet> result = success(wallet);
         given(createWalletCommandMapper.toCreateWalletCommand(tenantId, request)).willReturn(command);
-        given(createWalletUseCase.handle(command)).willReturn(wallet);
-        given(walletResponseMapper.toWalletResponse(wallet)).willReturn(expectedResponse);
+        given(createWalletUseCase.handle(command)).willReturn(result);
+        given(walletResultMapper.toWalletResponse(result)).willReturn(expectedResponse);
 
         // when
         var response = walletController.createWallet(tenantId, request);
@@ -98,7 +106,7 @@ class WalletControllerTest {
                 () -> assertThat(response).isEqualTo(expectedResponse),
                 () -> verify(createWalletCommandMapper).toCreateWalletCommand(tenantId, request),
                 () -> verify(createWalletUseCase).handle(command),
-                () -> verify(walletResponseMapper).toWalletResponse(wallet)
+                () -> verify(walletResultMapper).toWalletResponse(result)
         );
     }
 

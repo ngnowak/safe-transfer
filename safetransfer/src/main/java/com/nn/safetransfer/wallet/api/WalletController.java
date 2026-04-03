@@ -8,6 +8,7 @@ import com.nn.safetransfer.wallet.api.dto.WalletResponse;
 import com.nn.safetransfer.wallet.api.mapper.BalanceResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.DepositResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.WalletResponseMapper;
+import com.nn.safetransfer.wallet.api.mapper.WalletResultMapper;
 import com.nn.safetransfer.wallet.application.CreateWalletUseCase;
 import com.nn.safetransfer.wallet.application.DepositService;
 import com.nn.safetransfer.wallet.application.GetBalanceQuery;
@@ -40,6 +41,7 @@ public class WalletController {
 
     private final CreateWalletUseCase createWalletUseCase;
     private final WalletResponseMapper walletResponseMapper;
+    private final WalletResultMapper walletResultMapper;
     private final CreateWalletCommandMapper createWalletCommandMapper;
     private final QueryWalletUseCase queryWalletUseCase;
     private final QueryBalanceUseCase queryBalanceUseCase;
@@ -56,9 +58,9 @@ public class WalletController {
         log.info("Creating wallet for tenantId={}, customerId={}, currency={}", tenantId, request.customerId(), request.currency());
         var command = createWalletCommandMapper.toCreateWalletCommand(tenantId, request);
         var wallet = createWalletUseCase.handle(command);
-        log.info("Wallet created: walletId={}, tenantId={}", wallet.getId(), tenantId);
-
-        return walletResponseMapper.toWalletResponse(wallet);
+        var response = walletResultMapper.toWalletResponse(wallet);
+        log.info("Wallet created: walletId={}, tenantId={}", response.walletId(), tenantId);
+        return response;
     }
 
     @Operation(summary = "Get wallet by id")

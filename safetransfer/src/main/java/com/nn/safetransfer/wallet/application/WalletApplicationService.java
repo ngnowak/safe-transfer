@@ -1,5 +1,6 @@
 package com.nn.safetransfer.wallet.application;
 
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.wallet.domain.Wallet;
 import com.nn.safetransfer.wallet.domain.WalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,7 @@ public class WalletApplicationService implements CreateWalletUseCase {
 
     @Override
     @Transactional
-    public Wallet handle(CreateWalletCommand command) {
+    public Result<WalletError, Wallet> handle(CreateWalletCommand command) {
         log.info("Creating wallet: tenantId={}, customerId={}, currency={}", command.tenantId(), command.customerId(), command.currency());
 
         var alreadyExists = walletRepository.existsByTenantIdAndCustomerIdAndCurrency(
@@ -27,7 +28,7 @@ public class WalletApplicationService implements CreateWalletUseCase {
 
         if (alreadyExists) {
             log.warn("Duplicate wallet attempt: tenantId={}, customerId={}, currency={}", command.tenantId(), command.customerId(), command.currency());
-            throw new IllegalArgumentException("Wallet already exists for this tenant, customer, and currency");
+            return Result.failure(new WalletError.DuplicateWallet(command.tenantId(), command.customerId(), command.currency()));
         }
 
         var wallet = Wallet.create(
@@ -39,6 +40,6 @@ public class WalletApplicationService implements CreateWalletUseCase {
         var saved = walletRepository.save(wallet);
         log.info("Wallet created: walletId={}", saved.getId());
 
-        return saved;
+        return Result.success(saved);
     }
 }
