@@ -4,11 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.outbox.application.payload.TransferCompletedPayload;
 import com.nn.safetransfer.outbox.domain.OutboxEvent;
-import com.nn.safetransfer.transfer.domain.Transfer;
+import com.nn.safetransfer.transfer.domain.event.TransferCompletedDomainEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-
-import java.time.Instant;
 
 import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
 import static com.nn.safetransfer.outbox.domain.OutboxAggregateType.TRANSFER;
@@ -21,34 +19,33 @@ public class OutboxEventFactory {
 
     private final ObjectMapper objectMapper;
 
-    public OutboxEvent transferCompleted(Transfer transfer) {
+    public OutboxEvent from(TransferCompletedDomainEvent event) {
         var eventId = randomUUID();
-        var occurredAt = Instant.now();
         var payload = TransferCompletedPayload.builder()
                 .eventId(eventId)
-                .occurredAt(occurredAt)
-                .tenantId(transfer.getTenantId().value())
-                .transferId(transfer.getId().value())
-                .sourceWalletId(transfer.getSourceWalletId().value())
-                .destinationWalletId(transfer.getDestinationWalletId().value())
-                .amount(transfer.getAmount())
-                .currency(transfer.getCurrency().name())
-                .reference(transfer.getReference())
-                .idempotencyKey(transfer.getIdempotencyKey())
+                .occurredAt(event.occurredAt())
+                .tenantId(event.tenantId().value())
+                .transferId(event.transferId().value())
+                .sourceWalletId(event.sourceWalletId().value())
+                .destinationWalletId(event.destinationWalletId().value())
+                .amount(event.money().amount())
+                .currency(event.money().currency().name())
+                .reference(event.reference())
+                .idempotencyKey(event.idempotencyKey())
                 .build();
 
         return OutboxEvent.builder()
                 .id(eventId)
-                .tenantId(transfer.getTenantId().value())
+                .tenantId(event.tenantId().value())
                 .aggregateType(TRANSFER)
-                .aggregateId(transfer.getId().value())
+                .aggregateId(event.transferId().value())
                 .eventType(TRANSFER_COMPLETED)
                 .payload(serialize(payload))
                 .status(NEW)
-                .occurredAt(occurredAt)
+                .occurredAt(event.occurredAt())
                 .retryCount(0)
-                .correlationId(transfer.getId().value().toString())
-                .causationId(transfer.getIdempotencyKey())
+                .correlationId(event.transferId().value().toString())
+                .causationId(event.idempotencyKey())
                 .build();
     }
 

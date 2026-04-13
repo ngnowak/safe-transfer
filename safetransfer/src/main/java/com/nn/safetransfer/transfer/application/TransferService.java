@@ -10,6 +10,7 @@ import com.nn.safetransfer.outbox.domain.OutboxEventRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.domain.TransferRepository;
+import com.nn.safetransfer.transfer.domain.event.TransferCompletedDomainEvent;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
@@ -165,7 +166,8 @@ public class TransferService {
                 )
         );
 
-        outboxEventRepository.save(outboxEventFactory.transferCompleted(transfer));
+        var transferCompletedEvent = TransferCompletedDomainEvent.from(transfer);
+        outboxEventRepository.save(outboxEventFactory.from(transferCompletedEvent));
 
         log.info("Transfer completed: transferId={}, source={}, destination={}, amount={}",
                 transfer.getId(), sourceWalletId, destinationWalletId, request.amount());

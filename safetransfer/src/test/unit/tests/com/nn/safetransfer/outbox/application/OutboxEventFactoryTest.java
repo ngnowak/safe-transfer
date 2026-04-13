@@ -5,6 +5,7 @@ import com.nn.safetransfer.outbox.application.payload.TransferCompletedPayload;
 import com.nn.safetransfer.outbox.domain.OutboxAggregateType;
 import com.nn.safetransfer.outbox.domain.OutboxStatus;
 import com.nn.safetransfer.transfer.domain.Transfer;
+import com.nn.safetransfer.transfer.domain.event.TransferCompletedDomainEvent;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,8 @@ class OutboxEventFactoryTest {
         );
 
         // when
-        var event = factory.transferCompleted(transfer);
+        var domainEvent = TransferCompletedDomainEvent.from(transfer);
+        var event = factory.from(domainEvent);
         var payload = objectMapper.readValue(event.payload(), TransferCompletedPayload.class);
 
         // then
@@ -49,7 +51,7 @@ class OutboxEventFactoryTest {
                 () -> assertThat(event.aggregateId()).isEqualTo(transfer.getId().value()),
                 () -> assertThat(event.eventType()).isEqualTo(TRANSFER_COMPLETED),
                 () -> assertThat(event.status()).isEqualTo(OutboxStatus.NEW),
-                () -> assertThat(event.occurredAt()).isNotNull(),
+                () -> assertThat(event.occurredAt()).isEqualTo(domainEvent.occurredAt()),
                 () -> assertThat(event.retryCount()).isZero(),
                 () -> assertThat(event.correlationId()).isEqualTo(transfer.getId().value().toString()),
                 () -> assertThat(event.causationId()).isEqualTo("idem-123"),

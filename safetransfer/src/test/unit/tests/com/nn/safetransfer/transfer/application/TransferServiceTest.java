@@ -14,6 +14,7 @@ import com.nn.safetransfer.outbox.domain.OutboxStatus;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.domain.TransferRepository;
+import com.nn.safetransfer.transfer.domain.event.TransferCompletedDomainEvent;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
@@ -132,8 +133,8 @@ class TransferServiceTest {
                 .willAnswer(inv -> inv.getArgument(0));
         given(ledgerEntryRepository.save(any(LedgerEntry.class)))
                 .willAnswer(inv -> inv.getArgument(0));
-        given(outboxEventFactory.transferCompleted(any(Transfer.class)))
-                .willAnswer(inv -> buildOutboxEvent(tenantId, inv.getArgument(0)));
+        given(outboxEventFactory.from(any(TransferCompletedDomainEvent.class)))
+                .willAnswer(inv -> buildOutboxEvent(tenantId, ((TransferCompletedDomainEvent) inv.getArgument(0)).transferId().value(), idempotencyKey));
         given(outboxEventRepository.save(any(OutboxEvent.class)))
                 .willAnswer(inv -> inv.getArgument(0));
 
@@ -159,7 +160,7 @@ class TransferServiceTest {
                 () -> assertThat(ledgerEntries.getFirst().getType()).isEqualTo(LedgerEntryType.DEBIT),
                 () -> assertThat(ledgerEntries.get(1).getType()).isEqualTo(LedgerEntryType.CREDIT)
         );
-        verify(outboxEventFactory).transferCompleted(transfer);
+        verify(outboxEventFactory).from(any(TransferCompletedDomainEvent.class));
         verify(outboxEventRepository).save(any(OutboxEvent.class));
         verify(transferMetrics).recordTransferSuccess(sample);
         verify(transferMetrics, never()).recordTransferFailure(any(), any());
@@ -402,19 +403,19 @@ class TransferServiceTest {
                 .build();
     }
 
-    private OutboxEvent buildOutboxEvent(TenantId tenantId, Transfer transfer) {
+    private OutboxEvent buildOutboxEvent(TenantId tenantId, UUID transferId, String idempotencyKey) {
         return OutboxEvent.builder()
                 .id(UUID.randomUUID())
                 .tenantId(tenantId.value())
                 .aggregateType(OutboxAggregateType.TRANSFER)
-                .aggregateId(transfer.getId().value())
+                .aggregateId(transferId)
                 .eventType(EventType.TRANSFER_COMPLETED)
-                .payload("{\"transferId\":\"%s\"}".formatted(transfer.getId().value()))
+                .payload("{\"transferId\":\"%s\"}".formatted(transferId))
                 .status(OutboxStatus.NEW)
                 .occurredAt(java.time.Instant.now())
                 .retryCount(0)
-                .correlationId(transfer.getId().value().toString())
-                .causationId(transfer.getIdempotencyKey())
+                .correlationId(transferId.toString())
+                .causationId(idempotencyKey)
                 .build();
     }
 }
