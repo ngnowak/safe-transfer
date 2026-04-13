@@ -94,7 +94,7 @@ class TransferControllerIntegrationTest {
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
 
         // then
@@ -172,7 +172,7 @@ class TransferControllerIntegrationTest {
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
 
         var transferResponse = objectMapper.readValue(
@@ -230,7 +230,7 @@ class TransferControllerIntegrationTest {
                         .header("Idempotency-Key", idempotencyKey)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn();
 
         // when - second request with same idempotency key
@@ -347,7 +347,7 @@ class TransferControllerIntegrationTest {
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         assertThat(counterCount("safetransfer.transfer.created", "outcome", "success"))
                 .isEqualTo(counterBefore + 1.0d);
@@ -559,7 +559,7 @@ class TransferControllerIntegrationTest {
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         // then
         var sourceBalance = ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(sourceWalletId));

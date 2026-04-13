@@ -51,9 +51,6 @@ class WalletControllerTest {
     private CreateWalletUseCase createWalletUseCase;
 
     @Mock
-    private WalletResponseMapper walletResponseMapper;
-
-    @Mock
     private WalletResultMapper walletResultMapper;
 
     @Mock
@@ -116,6 +113,7 @@ class WalletControllerTest {
         var tenantId = UUID.randomUUID();
         var walletId = UUID.randomUUID();
         var wallet = Wallet.create(new TenantId(tenantId), CustomerId.create(), EUR);
+        Result<WalletError, Wallet> result = success(wallet);
         var expectedResponse = WalletResponse.builder()
                 .walletId(walletId.toString())
                 .tenantId(tenantId.toString())
@@ -123,8 +121,8 @@ class WalletControllerTest {
                 .status("ACTIVE")
                 .build();
 
-        given(queryWalletUseCase.handle(any(GetWalletQuery.class))).willReturn(wallet);
-        given(walletResponseMapper.toWalletResponse(wallet)).willReturn(expectedResponse);
+        given(queryWalletUseCase.handle(any(GetWalletQuery.class))).willReturn(result);
+        given(walletResultMapper.toWalletResponse(result)).willReturn(expectedResponse);
 
         // when
         var response = walletController.getWallet(tenantId, walletId);
@@ -133,7 +131,7 @@ class WalletControllerTest {
         assertAll(
                 () -> assertThat(response).isEqualTo(expectedResponse),
                 () -> verify(queryWalletUseCase).handle(any(GetWalletQuery.class)),
-                () -> verify(walletResponseMapper).toWalletResponse(wallet)
+                () -> verify(walletResultMapper).toWalletResponse(result)
         );
     }
 
@@ -147,6 +145,7 @@ class WalletControllerTest {
                 new TenantId(tenantId), new WalletId(walletId),
                 new BigDecimal("100.00"), EUR, "Ref"
         );
+        Result<WalletError, LedgerEntry> result = success(ledgerEntry);
         var expectedResponse = DepositResponse.builder()
                 .ledgerEntryId(ledgerEntry.getId().toString())
                 .walletId(walletId.toString())
@@ -158,8 +157,8 @@ class WalletControllerTest {
                 .build();
 
         given(depositService.deposit(eq(new TenantId(tenantId)), eq(new WalletId(walletId)), eq(request)))
-                .willReturn(ledgerEntry);
-        given(depositResponseMapper.toDepositResponse(ledgerEntry)).willReturn(expectedResponse);
+                .willReturn(result);
+        given(depositResponseMapper.toDepositResponse(result)).willReturn(expectedResponse);
 
         // when
         var response = walletController.deposit(tenantId, walletId, request);
@@ -168,7 +167,7 @@ class WalletControllerTest {
         assertAll(
                 () -> assertThat(response).isEqualTo(expectedResponse),
                 () -> verify(depositService).deposit(new TenantId(tenantId), new WalletId(walletId), request),
-                () -> verify(depositResponseMapper).toDepositResponse(ledgerEntry)
+                () -> verify(depositResponseMapper).toDepositResponse(result)
         );
     }
 
@@ -179,6 +178,7 @@ class WalletControllerTest {
         var walletId = UUID.randomUUID();
         var wallet = Wallet.create(new TenantId(tenantId), CustomerId.create(), EUR);
         var balanceResult = new BalanceResult(wallet, new BigDecimal("500.00"));
+        Result<WalletError, BalanceResult> result = success(balanceResult);
         var expectedResponse = BalanceResponse.builder()
                 .walletId(wallet.getId().toString())
                 .tenantId(tenantId.toString())
@@ -186,8 +186,8 @@ class WalletControllerTest {
                 .balance(new BigDecimal("500.00"))
                 .build();
 
-        given(queryBalanceUseCase.handle(any(GetBalanceQuery.class))).willReturn(balanceResult);
-        given(balanceResponseMapper.toBalanceResponse(balanceResult)).willReturn(expectedResponse);
+        given(queryBalanceUseCase.handle(any(GetBalanceQuery.class))).willReturn(result);
+        given(balanceResponseMapper.toBalanceResponse(result)).willReturn(expectedResponse);
 
         // when
         var response = walletController.getBalance(tenantId, walletId);
@@ -196,7 +196,7 @@ class WalletControllerTest {
         assertAll(
                 () -> assertThat(response).isEqualTo(expectedResponse),
                 () -> verify(queryBalanceUseCase).handle(any(GetBalanceQuery.class)),
-                () -> verify(balanceResponseMapper).toBalanceResponse(balanceResult)
+                () -> verify(balanceResponseMapper).toBalanceResponse(result)
         );
     }
 }

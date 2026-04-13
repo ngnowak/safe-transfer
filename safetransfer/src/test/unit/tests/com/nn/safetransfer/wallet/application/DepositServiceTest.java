@@ -4,9 +4,6 @@ import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
 import com.nn.safetransfer.ledger.domain.LedgerEntryType;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
-import com.nn.safetransfer.wallet.application.exception.WalletCurrencyMismatchException;
-import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
-import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
@@ -72,12 +69,13 @@ class DepositServiceTest {
                 () -> assertThat(savedEntry.getAmount()).isEqualByComparingTo(new BigDecimal("100.00")),
                 () -> assertThat(savedEntry.getCurrency()).isEqualTo(EUR),
                 () -> assertThat(savedEntry.getReference()).isEqualTo("Test deposit"),
-                () -> assertThat(result).isEqualTo(savedEntry)
+                () -> assertThat(result.isSuccess()).isTrue(),
+                () -> assertThat(result.getValue()).contains(savedEntry)
         );
     }
 
     @Test
-    void shouldThrowWhenWalletNotFound() {
+    void shouldReturnFailureWhenWalletNotFound() {
         // given
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
@@ -86,15 +84,18 @@ class DepositServiceTest {
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.empty());
 
-        // when / then
-        assertThatThrownBy(() -> depositService.deposit(tenantId, walletId, request))
-                .isInstanceOf(WalletNotFoundException.class);
+        // when
+        var result = depositService.deposit(tenantId, walletId, request);
+
+        // then
+        assertThat(result.isFailure()).isTrue();
+        assertThat(result.getError()).contains(new WalletError.WalletNotFound(walletId, tenantId));
 
         verify(ledgerEntryRepository, never()).save(any());
     }
 
     @Test
-    void shouldThrowWhenCurrencyDoesNotMatch() {
+    void shouldReturnFailureWhenCurrencyDoesNotMatch() {
         // given
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
@@ -104,15 +105,18 @@ class DepositServiceTest {
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.of(wallet));
 
-        // when / then
-        assertThatThrownBy(() -> depositService.deposit(tenantId, walletId, request))
-                .isInstanceOf(WalletCurrencyMismatchException.class);
+        // when
+        var result = depositService.deposit(tenantId, walletId, request);
+
+        // then
+        assertThat(result.isFailure()).isTrue();
+        assertThat(result.getError()).contains(new WalletError.CurrencyMismatch(EUR, USD));
 
         verify(ledgerEntryRepository, never()).save(any());
     }
 
     @Test
-    void shouldThrowWhenWalletIsNotActive() {
+    void shouldReturnFailureWhenWalletIsNotActive() {
         // given
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
@@ -123,10 +127,12 @@ class DepositServiceTest {
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.of(wallet));
 
-        // when / then
-        assertThatThrownBy(() -> depositService.deposit(tenantId, walletId, request))
-                .isInstanceOf(WalletOperationNotAllowedException.class)
-                .hasMessage("Wallet must be ACTIVE to accept deposits");
+        // when
+        var result = depositService.deposit(tenantId, walletId, request);
+
+        // then
+        assertThat(result.isFailure()).isTrue();
+        assertThat(result.getError()).contains(new WalletError.WalletNotActive("Wallet must be ACTIVE to accept deposits"));
 
         verify(ledgerEntryRepository, never()).save(any());
     }

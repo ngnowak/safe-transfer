@@ -37,10 +37,9 @@ public class TransferController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody CreateTransferRequest request
     ) {
-        log.info("Transfer request: tenantId={}, idempotencyKey={}, source={}, destination={}", tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId());
+        log.debug("Transfer request: tenantId={}, idempotencyKey={}, source={}, destination={}", tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId());
         var result = transferService.transfer(new TenantId(tenantId), idempotencyKey, request);
 
-        // TODO return 201 when created new and 200 when return existing
-        return ResponseEntity.ok(transferResultMapper.toTransferResponse(result));
+        return transferResultMapper.toTransferResponse(result);
     }
 }

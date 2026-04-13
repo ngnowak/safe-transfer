@@ -1,6 +1,5 @@
 package com.nn.safetransfer.transfer.domain;
 
-import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,8 @@ class TransferTest {
                 () -> assertThat(transfer.getStatus()).isEqualTo(COMPLETED),
                 () -> assertThat(transfer.getIdempotencyKey()).isEqualTo(idempotencyKey),
                 () -> assertThat(transfer.getReference()).isEqualTo(reference),
-                () -> assertThat(transfer.getCreatedAt()).isNotNull()
+                () -> assertThat(transfer.getCreatedAt()).isNotNull(),
+                () -> assertThat(transfer.isNewlyCreated()).isTrue()
         );
     }
 
@@ -61,6 +61,7 @@ class TransferTest {
 
         // then
         assertThat(transfer.getReference()).isNull();
+        assertThat(transfer.isNewlyCreated()).isTrue();
     }
 
     @Test

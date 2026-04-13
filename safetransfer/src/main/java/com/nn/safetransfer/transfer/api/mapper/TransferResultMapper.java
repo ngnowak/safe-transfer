@@ -13,17 +13,19 @@ import java.util.function.Function;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.http.HttpStatus.OK;
 
 @RequiredArgsConstructor
 @Component
 public class TransferResultMapper {
     private final TransferResponseMapper transferResponseMapper;
 
-    public TransferResponse toTransferResponse(Result<TransferError, Transfer> result) {
+    public ResponseEntity<TransferResponse> toTransferResponse(Result<TransferError, Transfer> result) {
         return switch (result) {
             case Result.Success<TransferError, Transfer> success ->
-                mapSuccessResponse(success, transferResponseMapper::toResponse).getBody();
+                mapSuccessResponse(success, transferResponseMapper::toResponse);
             case Result.Failure<TransferError, ?> failure ->
                 throw mapToResponseStatusException(failure);
         };
@@ -32,8 +34,10 @@ public class TransferResultMapper {
     private <T, R> ResponseEntity<R> mapSuccessResponse(final Result<?, T> result,
                                                         final Function<T, R> responseCreator) {
         return result.getValue()
-                .map(responseCreator)
-                .map(ResponseEntity::ok)
+                .map(value -> {
+                    var status = value instanceof Transfer transfer && transfer.isNewlyCreated() ? CREATED : OK;
+                    return ResponseEntity.status(status).body(responseCreator.apply(value));
+                })
                 .orElseGet(this::emptySuccessResponseEntity);
     }
 

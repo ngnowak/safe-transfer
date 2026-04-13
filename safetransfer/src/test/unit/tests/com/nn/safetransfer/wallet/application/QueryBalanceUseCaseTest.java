@@ -1,7 +1,6 @@
 package com.nn.safetransfer.wallet.application;
 
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
-import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
@@ -18,7 +17,6 @@ import java.util.Optional;
 
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.BDDMockito.given;
 
@@ -55,13 +53,13 @@ class QueryBalanceUseCaseTest {
 
         // then
         assertAll(
-                () -> assertThat(result.wallet()).isEqualTo(wallet),
-                () -> assertThat(result.balance()).isEqualByComparingTo(new BigDecimal("500.00"))
+                () -> assertThat(result.isSuccess()).isTrue(),
+                () -> assertThat(result.getValue()).contains(new BalanceResult(wallet, new BigDecimal("500.00")))
         );
     }
 
     @Test
-    void shouldThrowWalletNotFoundExceptionWhenWalletDoesNotExist() {
+    void shouldReturnFailureWhenWalletDoesNotExist() {
         // given
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
@@ -73,8 +71,11 @@ class QueryBalanceUseCaseTest {
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.empty());
 
-        // when / then
-        assertThatThrownBy(() -> queryBalanceUseCase.handle(query))
-                .isInstanceOf(WalletNotFoundException.class);
+        // when
+        var result = queryBalanceUseCase.handle(query);
+
+        // then
+        assertThat(result.isFailure()).isTrue();
+        assertThat(result.getError()).contains(new WalletError.WalletNotFound(walletId, tenantId));
     }
 }

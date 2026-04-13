@@ -7,7 +7,6 @@ import com.nn.safetransfer.wallet.api.dto.DepositResponse;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
 import com.nn.safetransfer.wallet.api.mapper.BalanceResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.DepositResponseMapper;
-import com.nn.safetransfer.wallet.api.mapper.WalletResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.WalletResultMapper;
 import com.nn.safetransfer.wallet.application.CreateWalletUseCase;
 import com.nn.safetransfer.wallet.application.DepositService;
@@ -40,7 +39,6 @@ import java.util.UUID;
 public class WalletController {
 
     private final CreateWalletUseCase createWalletUseCase;
-    private final WalletResponseMapper walletResponseMapper;
     private final WalletResultMapper walletResultMapper;
     private final CreateWalletCommandMapper createWalletCommandMapper;
     private final QueryWalletUseCase queryWalletUseCase;
@@ -55,7 +53,7 @@ public class WalletController {
             @PathVariable UUID tenantId,
             @Valid @RequestBody CreateWalletRequest request
     ) {
-        log.info("Creating wallet for tenantId={}, customerId={}, currency={}", tenantId, request.customerId(), request.currency());
+        log.debug("Creating wallet for tenantId={}, customerId={}, currency={}", tenantId, request.customerId(), request.currency());
         var command = createWalletCommandMapper.toCreateWalletCommand(tenantId, request);
         var wallet = createWalletUseCase.handle(command);
         var response = walletResultMapper.toWalletResponse(wallet);
@@ -69,14 +67,14 @@ public class WalletController {
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
     ) {
-        log.info("Getting wallet: walletId={}, tenantId={}", walletId, tenantId);
+        log.debug("Getting wallet: walletId={}, tenantId={}", walletId, tenantId);
         var command = GetWalletQuery.builder()
                 .tenantId(new TenantId(tenantId))
                 .walletId(new WalletId(walletId))
                 .build();
         var wallet = queryWalletUseCase.handle(command);
 
-        return walletResponseMapper.toWalletResponse(wallet);
+        return walletResultMapper.toWalletResponse(wallet);
     }
 
     @Operation(summary = "Get wallet balance")
@@ -85,7 +83,7 @@ public class WalletController {
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
     ) {
-        log.info("Getting balance: walletId={}, tenantId={}", walletId, tenantId);
+        log.debug("Getting balance: walletId={}, tenantId={}", walletId, tenantId);
         var query = GetBalanceQuery.builder()
                 .tenantId(new TenantId(tenantId))
                 .walletId(new WalletId(walletId))
@@ -102,14 +100,13 @@ public class WalletController {
             @PathVariable UUID walletId,
             @Valid @RequestBody DepositRequest request
     ) {
-        log.info("Depositing: walletId={}, tenantId={}, amount={}, currency={}", walletId, tenantId, request.amount(), request.currency());
-        var ledgerEntry = depositService.deposit(
+        log.debug("Depositing: walletId={}, tenantId={}, amount={}, currency={}", walletId, tenantId, request.amount(), request.currency());
+        var result = depositService.deposit(
                 new TenantId(tenantId),
                 new WalletId(walletId),
                 request
         );
-        log.info("Deposit completed: ledgerEntryId={}, walletId={}", ledgerEntry.getId(), walletId);
-
-        return depositResponseMapper.toDepositResponse(ledgerEntry);
+        result.getValue().ifPresent(ledgerEntry -> log.info("Deposit completed: ledgerEntryId={}, walletId={}", ledgerEntry.getId(), walletId));
+        return depositResponseMapper.toDepositResponse(result);
     }
 }

@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -71,12 +72,59 @@ class TransferControllerTest {
         Result<TransferError, Transfer> result = Result.success(transfer);
         given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request))
                 .willReturn(result);
-        given(transferResultMapper.toTransferResponse(result)).willReturn(expectedResponse);
+        given(transferResultMapper.toTransferResponse(result)).willReturn(ResponseEntity.status(HttpStatus.CREATED).body(expectedResponse));
 
         // when
         var response = transferController.createTransfer(tenantId, idempotencyKey, request);
 
         // then
+        assertAll(
+                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED),
+                () -> assertThat(response.getBody()).isEqualTo(expectedResponse),
+                () -> verify(transferService).transfer(new TenantId(tenantId), idempotencyKey, request),
+                () -> verify(transferResultMapper).toTransferResponse(result)
+        );
+    }
+
+    @Test
+    void shouldReturnOkWhenTransferAlreadyExistsForIdempotencyKey() {
+        var tenantId = UUID.randomUUID();
+        var idempotencyKey = "idem-existing";
+        var sourceWalletId = UUID.randomUUID();
+        var destinationWalletId = UUID.randomUUID();
+        var amount = new BigDecimal("100.00");
+        var request = new CreateTransferRequest(sourceWalletId, destinationWalletId, amount, "EUR", "Payment");
+
+        var transfer = Transfer.builder()
+                .id(com.nn.safetransfer.transfer.domain.TransferId.newId())
+                .tenantId(new TenantId(tenantId))
+                .sourceWalletId(new WalletId(sourceWalletId))
+                .destinationWalletId(new WalletId(destinationWalletId))
+                .amount(amount)
+                .currency(EUR)
+                .status(com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED)
+                .idempotencyKey(idempotencyKey)
+                .reference("Payment")
+                .createdAt(Instant.now())
+                .build();
+        var expectedResponse = TransferResponse.builder()
+                .transferId(transfer.getId().toString())
+                .tenantId(tenantId.toString())
+                .sourceWalletId(sourceWalletId.toString())
+                .destinationWalletId(destinationWalletId.toString())
+                .amount(amount)
+                .currency("EUR")
+                .status("COMPLETED")
+                .reference("Payment")
+                .createdAt(Instant.now())
+                .build();
+        Result<TransferError, Transfer> result = Result.success(transfer);
+
+        given(transferService.transfer(new TenantId(tenantId), idempotencyKey, request)).willReturn(result);
+        given(transferResultMapper.toTransferResponse(result)).willReturn(ResponseEntity.ok(expectedResponse));
+
+        var response = transferController.createTransfer(tenantId, idempotencyKey, request);
+
         assertAll(
                 () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
                 () -> assertThat(response.getBody()).isEqualTo(expectedResponse),

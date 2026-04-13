@@ -1,6 +1,6 @@
 package com.nn.safetransfer.wallet.application;
 
-import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.wallet.domain.Wallet;
 import com.nn.safetransfer.wallet.domain.WalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,15 +14,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class QueryWalletUseCase {
     private final WalletRepository walletRepository;
 
-    // TODO return result
     @Transactional(readOnly = true)
-    public Wallet handle(GetWalletQuery query) {
-        log.info("Querying wallet: walletId={}, tenantId={}", query.walletId(), query.tenantId());
+    public Result<WalletError, Wallet> handle(GetWalletQuery query) {
+        log.debug("Querying wallet: walletId={}, tenantId={}", query.walletId(), query.tenantId());
 
         return walletRepository.findByIdAndTenantId(query.walletId(), query.tenantId())
-                .orElseThrow(() -> {
+                .<Result<WalletError, Wallet>>map(Result::success)
+                .orElseGet(() -> {
                     log.warn("Wallet not found: walletId={}, tenantId={}", query.walletId(), query.tenantId());
-                    return new WalletNotFoundException(query.walletId(), query.tenantId());
+                    return Result.failure(new WalletError.WalletNotFound(query.walletId(), query.tenantId()));
                 });
     }
 }

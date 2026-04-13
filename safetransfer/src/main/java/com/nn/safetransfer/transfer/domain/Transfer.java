@@ -25,6 +25,7 @@ public class Transfer {
     private final String idempotencyKey;
     private final String reference;
     private final Instant createdAt;
+    private final boolean newlyCreated;
 
     @Builder
     public Transfer(
@@ -37,7 +38,8 @@ public class Transfer {
             TransferStatus status,
             String idempotencyKey,
             String reference,
-            Instant createdAt
+            Instant createdAt,
+            boolean newlyCreated
     ) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
@@ -48,6 +50,7 @@ public class Transfer {
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey must not be null");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
+        this.newlyCreated = newlyCreated;
 
         if (amount.signum() <= 0) {
             throw new IllegalArgumentException("amount must be greater than zero");
@@ -80,6 +83,7 @@ public class Transfer {
                 .idempotencyKey(idempotencyKey)
                 .reference(reference)
                 .createdAt(Instant.now())
+                .newlyCreated(true)
                 .build();
     }
 }

@@ -1,11 +1,14 @@
 package com.nn.safetransfer.wallet.application;
 
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
-import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
+import com.nn.safetransfer.wallet.application.exception.WalletCurrencyMismatchException;
+import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.TenantId;
+import com.nn.safetransfer.wallet.domain.Wallet;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import com.nn.safetransfer.wallet.domain.WalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,24 +24,37 @@ public class DepositService {
     private final WalletRepository walletRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
 
-    // TODO return result
     @Transactional
-    public LedgerEntry deposit(
+    public Result<WalletError, LedgerEntry> deposit(
             TenantId tenantId,
             WalletId walletId,
             DepositRequest request
     ) {
         log.info("Processing deposit: walletId={}, tenantId={}, amount={}, currency={}", walletId, tenantId, request.amount(), request.currency());
 
-        var wallet = walletRepository.findByIdAndTenantId(walletId, tenantId)
-                .orElseThrow(() -> {
+        return walletRepository.findByIdAndTenantId(walletId, tenantId)
+                .map(wallet -> processDeposit(tenantId, walletId, request, wallet))
+                .orElseGet(() -> {
                     log.warn("Wallet not found for deposit: walletId={}, tenantId={}", walletId, tenantId);
-                    return new WalletNotFoundException(walletId, tenantId);
+                    return Result.failure(new WalletError.WalletNotFound(walletId, tenantId));
                 });
+    }
 
+    private Result<WalletError, LedgerEntry> processDeposit(
+            TenantId tenantId,
+            WalletId walletId,
+            DepositRequest request,
+            Wallet wallet
+    ) {
         var requestCurrency = CurrencyCode.from(request.currency());
 
-        wallet.ensureCanAcceptDeposit(requestCurrency);
+        try {
+            wallet.ensureCanAcceptDeposit(requestCurrency);
+        } catch (WalletCurrencyMismatchException ex) {
+            return Result.failure(new WalletError.CurrencyMismatch(wallet.getCurrency(), requestCurrency));
+        } catch (WalletOperationNotAllowedException ex) {
+            return Result.failure(new WalletError.WalletNotActive(ex.getMessage()));
+        }
 
         var entry = LedgerEntry.credit(
                 tenantId,
@@ -51,6 +67,6 @@ public class DepositService {
         var saved = ledgerEntryRepository.save(entry);
         log.info("Deposit completed: ledgerEntryId={}, walletId={}", saved.getId(), walletId);
 
-        return saved;
+        return Result.success(saved);
     }
 }

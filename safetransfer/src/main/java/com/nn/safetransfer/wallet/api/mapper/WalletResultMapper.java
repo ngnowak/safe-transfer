@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.function.Function;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RequiredArgsConstructor
 @Component
@@ -45,6 +46,7 @@ public class WalletResultMapper {
 
         return switch (error) {
             case WalletError.DuplicateWallet _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
+            case WalletError.WalletNotFound _ -> new ResponseStatusException(NOT_FOUND, errorMessage);
             default -> new ResponseStatusException(BAD_REQUEST, errorMessage);
         };
     }
