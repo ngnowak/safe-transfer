@@ -20,6 +20,9 @@ class TransferMetricOutcomeTest {
                 .isEqualTo(TransferMetricOutcome.SAME_WALLET);
         assertThat(TransferMetricOutcome.from(new TransferError.WalletNotFound(walletId, tenantId)))
                 .isEqualTo(TransferMetricOutcome.WALLET_NOT_FOUND);
+        assertThat(TransferMetricOutcome.from(new TransferError.TransferNotFound(
+                com.nn.safetransfer.transfer.domain.TransferId.newId(), tenantId)))
+                .isEqualTo(TransferMetricOutcome.OTHER_ERROR);
         assertThat(TransferMetricOutcome.from(new TransferError.WalletNotActive("blocked")))
                 .isEqualTo(TransferMetricOutcome.WALLET_NOT_ACTIVE);
         assertThat(TransferMetricOutcome.from(new TransferError.CurrencyMismatch(

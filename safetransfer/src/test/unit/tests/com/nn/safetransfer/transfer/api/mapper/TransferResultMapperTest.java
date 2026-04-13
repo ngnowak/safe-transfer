@@ -76,4 +76,15 @@ class TransferResultMapperTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
+
+    @Test
+    void shouldMapTransferNotFoundFailureToNotFound() {
+        var transferId = TransferId.newId();
+        var tenantId = TenantId.create();
+
+        assertThatThrownBy(() -> mapper.toTransferResponse(
+                Result.failure(new TransferError.TransferNotFound(transferId, tenantId))))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
 }

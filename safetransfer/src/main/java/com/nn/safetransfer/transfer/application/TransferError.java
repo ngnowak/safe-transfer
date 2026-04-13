@@ -25,6 +25,14 @@ public sealed interface TransferError {
         }
     }
 
+    record TransferNotFound(com.nn.safetransfer.transfer.domain.TransferId transferId, TenantId tenantId) implements TransferError {
+        @Override
+        public String getMessage() {
+            return "Transfer with id '%s' was not found for tenant '%s'"
+                    .formatted(transferId.value(), tenantId.value());
+        }
+    }
+
     record WalletNotActive(String detail) implements TransferError {
         @Override
         public String getMessage() {

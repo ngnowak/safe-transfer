@@ -21,6 +21,7 @@ public enum TransferMetricOutcome {
         return switch (error) {
             case TransferError.InsufficientFunds ignored -> INSUFFICIENT_FUNDS;
             case TransferError.WalletNotFound ignored -> WALLET_NOT_FOUND;
+            case TransferError.TransferNotFound ignored -> OTHER_ERROR;
             case TransferError.WalletNotActive ignored -> WALLET_NOT_ACTIVE;
             case TransferError.CurrencyMismatch ignored -> CURRENCY_MISMATCH;
             case TransferError.SameWalletTransfer ignored -> SAME_WALLET;

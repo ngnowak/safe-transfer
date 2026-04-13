@@ -48,6 +48,7 @@ public class TransferResultMapper extends AbstractResultMapper<TransferError, Tr
         return switch (error) {
             case TransferError.SameWalletTransfer _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
             case TransferError.WalletNotFound _ -> new ResponseStatusException(NOT_FOUND, errorMessage);
+            case TransferError.TransferNotFound _ -> new ResponseStatusException(NOT_FOUND, errorMessage);
             case TransferError.WalletNotActive _ -> new ResponseStatusException(CONFLICT, errorMessage);
             case TransferError.CurrencyMismatch _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
             case TransferError.InsufficientFunds _ -> new ResponseStatusException(CONFLICT, errorMessage);

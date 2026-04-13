@@ -8,6 +8,8 @@ public interface TransferRepository {
 
     Transfer save(Transfer transfer);
 
+    Optional<Transfer> findByIdAndTenantId(TransferId transferId, TenantId tenantId);
+
     Optional<Transfer> findByTenantIdAndIdempotencyKey(TenantId tenantId, String idempotencyKey);
 
 }

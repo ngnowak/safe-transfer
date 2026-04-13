@@ -23,6 +23,12 @@ public class TransferRepositoryJpaAdapter implements TransferRepository {
     }
 
     @Override
+    public Optional<Transfer> findByIdAndTenantId(com.nn.safetransfer.transfer.domain.TransferId transferId, TenantId tenantId) {
+        return springDataTransferRepository.findByIdAndTenantId(transferId.value(), tenantId.value())
+                .map(transferMapper::toDomain);
+    }
+
+    @Override
     public Optional<Transfer> findByTenantIdAndIdempotencyKey(TenantId tenantId, String idempotencyKey) {
         return springDataTransferRepository
                 .findByTenantIdAndIdempotencyKey(tenantId.value(), idempotencyKey)

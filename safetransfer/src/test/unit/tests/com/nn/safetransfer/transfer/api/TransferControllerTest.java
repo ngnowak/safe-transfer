@@ -4,9 +4,12 @@ import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.api.dto.TransferResponse;
 import com.nn.safetransfer.transfer.api.mapper.TransferResultMapper;
+import com.nn.safetransfer.transfer.application.GetTransferQuery;
+import com.nn.safetransfer.transfer.application.QueryTransferUseCase;
 import com.nn.safetransfer.transfer.application.TransferError;
 import com.nn.safetransfer.transfer.application.TransferService;
 import com.nn.safetransfer.transfer.domain.Transfer;
+import com.nn.safetransfer.transfer.domain.TransferId;
 import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
@@ -35,6 +38,9 @@ class TransferControllerTest {
 
     @Mock
     private TransferService transferService;
+
+    @Mock
+    private QueryTransferUseCase queryTransferUseCase;
 
     @Mock
     private TransferResultMapper transferResultMapper;
@@ -231,5 +237,63 @@ class TransferControllerTest {
                 () -> verify(transferService).transfer(new TenantId(tenantId), idempotencyKey, request),
                 () -> verify(transferResultMapper).toTransferResponse(result)
         );
+    }
+
+    @Test
+    void shouldGetTransfer() {
+        var tenantId = UUID.randomUUID();
+        var transfer = Transfer.completed(
+                new TenantId(tenantId),
+                WalletId.create(),
+                WalletId.create(),
+                new BigDecimal("10.00"),
+                EUR,
+                "idem",
+                "ref"
+        );
+        var transferId = transfer.getId().value();
+        var expectedResponse = TransferResponse.builder()
+                .transferId(transfer.getId().value().toString())
+                .tenantId(tenantId.toString())
+                .sourceWalletId(transfer.getSourceWalletId().value().toString())
+                .destinationWalletId(transfer.getDestinationWalletId().value().toString())
+                .amount(transfer.getAmount())
+                .currency(transfer.getCurrency().name())
+                .status(transfer.getStatus().name())
+                .reference(transfer.getReference())
+                .createdAt(transfer.getCreatedAt())
+                .build();
+        Result<TransferError, Transfer> result = Result.success(transfer);
+
+        given(queryTransferUseCase.handle(GetTransferQuery.builder()
+                .tenantId(new TenantId(tenantId))
+                .transferId(new TransferId(transferId))
+                .build())).willReturn(result);
+        given(transferResultMapper.toTransferResponse(result)).willReturn(ResponseEntity.ok(expectedResponse));
+
+        var response = transferController.getTransfer(tenantId, transferId);
+
+        assertAll(
+                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
+                () -> assertThat(response.getBody()).isEqualTo(expectedResponse)
+        );
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenTransferDoesNotExist() {
+        var tenantId = UUID.randomUUID();
+        var transferId = TransferId.newId();
+        var result = Result.<TransferError, Transfer>failure(new TransferError.TransferNotFound(transferId, new TenantId(tenantId)));
+        var exception = new ResponseStatusException(HttpStatus.NOT_FOUND, result.getError().orElseThrow().getMessage());
+
+        given(queryTransferUseCase.handle(GetTransferQuery.builder()
+                .tenantId(new TenantId(tenantId))
+                .transferId(transferId)
+                .build())).willReturn(result);
+        given(transferResultMapper.toTransferResponse(result)).willThrow(exception);
+
+        var thrown = assertThrows(ResponseStatusException.class, () -> transferController.getTransfer(tenantId, transferId.value()));
+
+        assertThat(thrown.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

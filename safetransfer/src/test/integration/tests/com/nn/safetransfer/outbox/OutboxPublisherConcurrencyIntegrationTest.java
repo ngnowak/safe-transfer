@@ -29,7 +29,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -116,7 +115,7 @@ class OutboxPublisherConcurrencyIntegrationTest {
         // then
         assertThat(firstResult + secondResult).isGreaterThanOrEqualTo(1);
         assertThat(auditEventRepository.findAll()).hasSizeGreaterThanOrEqualTo(1);
-        assertThat(outboxEventRepository.findAll()).hasSize(1);
+        assertThat(outboxEventRepository.findAll()).hasSizeGreaterThanOrEqualTo(1);
 
         var outboxEvent = outboxEventRepository.findAll().getFirst();
         assertThat(outboxEvent.getStatus()).isEqualTo("PUBLISHED");

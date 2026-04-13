@@ -3,6 +3,7 @@ package com.nn.safetransfer.wallet.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
 import com.nn.safetransfer.common.api.ErrorDto;
+import com.nn.safetransfer.ledger.domain.LedgerEntryType;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
@@ -11,6 +12,8 @@ import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositResponse;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
+import com.nn.safetransfer.wallet.domain.CurrencyCode;
+import com.nn.safetransfer.wallet.domain.WalletStatus;
 import com.nn.safetransfer.wallet.infrastructure.persistence.SpringDataWalletRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +38,12 @@ class WalletControllerIntegrationTest {
     private static final String BALANCE_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/balance";
     private static final String DEPOSITS_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/deposits";
     private static final String TRANSFERS_PATH = "/api/v1/tenants/{tenantId}/transfers";
+    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+    private static final String EUR = CurrencyCode.EUR.name();
+    private static final String USD = CurrencyCode.USD.name();
+    private static final String PLN = CurrencyCode.PLN.name();
+    private static final String ACTIVE = WalletStatus.ACTIVE.name();
+    private static final String CREDIT = LedgerEntryType.CREDIT.name();
 
     @Autowired
     private MockMvc mockMvc;
@@ -62,7 +71,7 @@ class WalletControllerIntegrationTest {
         // given
         var tenantId = UUID.randomUUID();
         var customerId = UUID.randomUUID();
-        var request = new CreateWalletRequest(customerId, "EUR");
+        var request = new CreateWalletRequest(customerId, EUR);
 
         // when
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
@@ -80,8 +89,8 @@ class WalletControllerIntegrationTest {
                 () -> assertThat(response.walletId()).isNotNull(),
                 () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
                 () -> assertThat(response.customerId()).isEqualTo(customerId.toString()),
-                () -> assertThat(response.currency()).isEqualTo("EUR"),
-                () -> assertThat(response.status()).isEqualTo("ACTIVE")
+                () -> assertThat(response.currency()).isEqualTo(EUR),
+                () -> assertThat(response.status()).isEqualTo(ACTIVE)
         );
 
         // verify database state
@@ -92,8 +101,8 @@ class WalletControllerIntegrationTest {
         assertAll(
                 () -> assertThat(walletJpa.getTenantId()).isEqualTo(tenantId),
                 () -> assertThat(walletJpa.getCustomerId()).isEqualTo(customerId),
-                () -> assertThat(walletJpa.getCurrency()).isEqualTo("EUR"),
-                () -> assertThat(walletJpa.getStatus()).isEqualTo("ACTIVE")
+                () -> assertThat(walletJpa.getCurrency()).isEqualTo(EUR),
+                () -> assertThat(walletJpa.getStatus()).isEqualTo(ACTIVE)
         );
     }
 
@@ -102,7 +111,7 @@ class WalletControllerIntegrationTest {
         // given
         var tenantId = UUID.randomUUID();
         var customerId = UUID.randomUUID();
-        var currency = "EUR";
+        var currency = EUR;
         var request = new CreateWalletRequest(customerId, currency);
         var expectedErrorMsg = "Wallet already exists for tenant %s, customer %s, and currency %s".formatted(tenantId, customerId, currency);
 
@@ -275,8 +284,8 @@ class WalletControllerIntegrationTest {
     void shouldDepositFundsSuccessfully() throws Exception {
         // given
         var tenantId = UUID.randomUUID();
-        var walletId = createWallet(tenantId, "PLN");
-        var depositRequest = new DepositRequest(new BigDecimal("500.00"), "PLN", "Initial deposit");
+        var walletId = createWallet(tenantId, PLN);
+        var depositRequest = new DepositRequest(new BigDecimal("500.00"), PLN, "Initial deposit");
 
         // when
         var result = mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
@@ -294,8 +303,8 @@ class WalletControllerIntegrationTest {
                 () -> assertThat(response.ledgerEntryId()).isNotNull(),
                 () -> assertThat(response.walletId()).isEqualTo(walletId),
                 () -> assertThat(response.amount()).isEqualByComparingTo(new BigDecimal("500.00")),
-                () -> assertThat(response.currency()).isEqualTo("PLN"),
-                () -> assertThat(response.entryType()).isEqualTo("CREDIT"),
+                () -> assertThat(response.currency()).isEqualTo(PLN),
+                () -> assertThat(response.entryType()).isEqualTo(CREDIT),
                 () -> assertThat(response.reference()).isEqualTo("Initial deposit"),
                 () -> assertThat(response.createdAt()).isNotNull()
         );
@@ -308,7 +317,7 @@ class WalletControllerIntegrationTest {
         assertAll(
                 () -> assertThat(entry.getTenantId()).isEqualTo(tenantId),
                 () -> assertThat(entry.getWalletId()).isEqualTo(UUID.fromString(walletId)),
-                () -> assertThat(entry.getType()).isEqualTo("CREDIT"),
+                () -> assertThat(entry.getType()).isEqualTo(CREDIT),
                 () -> assertThat(entry.getAmount()).isEqualByComparingTo(new BigDecimal("500.00"))
         );
     }
@@ -453,7 +462,7 @@ class WalletControllerIntegrationTest {
         assertAll(
                 () -> assertThat(response.walletId()).isEqualTo(walletId),
                 () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
-                () -> assertThat(response.currency()).isEqualTo("EUR"),
+                () -> assertThat(response.currency()).isEqualTo(EUR),
                 () -> assertThat(response.balance()).isEqualByComparingTo(new BigDecimal("500.00"))
         );
     }
@@ -517,7 +526,7 @@ class WalletControllerIntegrationTest {
                 .build();
 
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY_HEADER, UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(transferRequest)))
                 .andExpect(status().isCreated());

@@ -17,12 +17,12 @@ class TransferMetricsTest {
 
         transferMetrics.recordTransferSuccess(sample);
 
-        assertThat(meterRegistry.get("safetransfer.transfer.created")
-                .tag("outcome", "success")
+        assertThat(meterRegistry.get(MetricName.TRANSFER_CREATED.getValue())
+                .tag(MetricTag.OUTCOME.getValue(), TransferMetricOutcome.SUCCESS.getTagValue())
                 .counter()
                 .count()).isEqualTo(1.0d);
-        assertThat(meterRegistry.get("safetransfer.transfer.duration")
-                .tag("outcome", "success")
+        assertThat(meterRegistry.get(MetricName.TRANSFER_DURATION.getValue())
+                .tag(MetricTag.OUTCOME.getValue(), TransferMetricOutcome.SUCCESS.getTagValue())
                 .timer()
                 .count()).isEqualTo(1L);
     }
@@ -35,12 +35,12 @@ class TransferMetricsTest {
 
         transferMetrics.recordTransferFailure(sample, TransferMetricOutcome.WALLET_NOT_FOUND);
 
-        assertThat(meterRegistry.get("safetransfer.transfer.created")
-                .tag("outcome", "wallet_not_found")
+        assertThat(meterRegistry.get(MetricName.TRANSFER_CREATED.getValue())
+                .tag(MetricTag.OUTCOME.getValue(), TransferMetricOutcome.WALLET_NOT_FOUND.getTagValue())
                 .counter()
                 .count()).isEqualTo(1.0d);
-        assertThat(meterRegistry.get("safetransfer.transfer.duration")
-                .tag("outcome", "wallet_not_found")
+        assertThat(meterRegistry.get(MetricName.TRANSFER_DURATION.getValue())
+                .tag(MetricTag.OUTCOME.getValue(), TransferMetricOutcome.WALLET_NOT_FOUND.getTagValue())
                 .timer()
                 .count()).isEqualTo(1L);
     }
@@ -52,12 +52,12 @@ class TransferMetricsTest {
 
         transferMetrics.recordOutboxPublished(EventType.TRANSFER_COMPLETED, 1_000L);
 
-        assertThat(meterRegistry.get("safetransfer.outbox.publish.success")
-                .tag("event_type", "TRANSFER_COMPLETED")
+        assertThat(meterRegistry.get(MetricName.OUTBOX_PUBLISH_SUCCESS.getValue())
+                .tag(MetricTag.EVENT_TYPE.getValue(), EventType.TRANSFER_COMPLETED.name())
                 .counter()
                 .count()).isEqualTo(1.0d);
-        assertThat(meterRegistry.get("safetransfer.outbox.publish.duration")
-                .tag("event_type", "TRANSFER_COMPLETED")
+        assertThat(meterRegistry.get(MetricName.OUTBOX_PUBLISH_DURATION.getValue())
+                .tag(MetricTag.EVENT_TYPE.getValue(), EventType.TRANSFER_COMPLETED.name())
                 .timer()
                 .count()).isEqualTo(1L);
     }
@@ -69,18 +69,18 @@ class TransferMetricsTest {
 
         transferMetrics.recordOutboxFailed(EventType.TRANSFER_COMPLETED, OutboxStatus.FATAL, 1_000L);
 
-        assertThat(meterRegistry.get("safetransfer.outbox.publish.failure")
-                .tag("event_type", "TRANSFER_COMPLETED")
-                .tag("status", "FATAL")
+        assertThat(meterRegistry.get(MetricName.OUTBOX_PUBLISH_FAILURE.getValue())
+                .tag(MetricTag.EVENT_TYPE.getValue(), EventType.TRANSFER_COMPLETED.name())
+                .tag(MetricTag.STATUS.getValue(), OutboxStatus.FATAL.name())
                 .counter()
                 .count()).isEqualTo(1.0d);
-        assertThat(meterRegistry.get("safetransfer.outbox.fatal")
-                .tag("event_type", "TRANSFER_COMPLETED")
+        assertThat(meterRegistry.get(MetricName.OUTBOX_FATAL.getValue())
+                .tag(MetricTag.EVENT_TYPE.getValue(), EventType.TRANSFER_COMPLETED.name())
                 .counter()
                 .count()).isEqualTo(1.0d);
-        assertThat(meterRegistry.get("safetransfer.outbox.publish.duration")
-                .tag("event_type", "TRANSFER_COMPLETED")
-                .tag("status", "FATAL")
+        assertThat(meterRegistry.get(MetricName.OUTBOX_PUBLISH_DURATION.getValue())
+                .tag(MetricTag.EVENT_TYPE.getValue(), EventType.TRANSFER_COMPLETED.name())
+                .tag(MetricTag.STATUS.getValue(), OutboxStatus.FATAL.name())
                 .timer()
                 .count()).isEqualTo(1L);
     }

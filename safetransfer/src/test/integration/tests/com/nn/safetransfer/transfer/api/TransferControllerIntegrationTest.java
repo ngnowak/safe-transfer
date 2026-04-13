@@ -4,16 +4,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
 import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEventRepository;
 import com.nn.safetransfer.common.api.ErrorDto;
+import com.nn.safetransfer.common.metrics.MetricName;
+import com.nn.safetransfer.common.metrics.MetricTag;
+import com.nn.safetransfer.common.metrics.TransferMetricOutcome;
 import io.micrometer.core.instrument.MeterRegistry;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
 import com.nn.safetransfer.outbox.application.OutboxPublisher;
+import com.nn.safetransfer.outbox.domain.OutboxStatus;
 import com.nn.safetransfer.outbox.infrastructure.persistence.SpringDataOutboxEventRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.api.dto.TransferResponse;
+import com.nn.safetransfer.transfer.domain.TransferStatus;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
+import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.infrastructure.persistence.SpringDataWalletRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +34,7 @@ import static com.nn.safetransfer.outbox.domain.OutboxAggregateType.TRANSFER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,6 +44,10 @@ class TransferControllerIntegrationTest {
     private static final String WALLETS_PATH = "/api/v1/tenants/{tenantId}/wallets";
     private static final String DEPOSITS_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/deposits";
     private static final String TRANSFERS_PATH = "/api/v1/tenants/{tenantId}/transfers";
+    private static final String TRANSFER_PATH = "/api/v1/tenants/{tenantId}/transfers/{transferId}";
+    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+    private static final String EUR = CurrencyCode.EUR.name();
+    private static final String COMPLETED = TransferStatus.COMPLETED.name();
 
     @Autowired
     private MockMvc mockMvc;
@@ -91,7 +102,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY_HEADER, UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -140,7 +151,7 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(outboxEvent.getAggregateType()).isEqualTo(TRANSFER.name()),
                 () -> assertThat(outboxEvent.getAggregateId()).isEqualTo(UUID.fromString(response.transferId())),
                 () -> assertThat(outboxEvent.getTenantId()).isEqualTo(tenantId),
-                () -> assertThat(outboxEvent.getStatus()).isEqualTo("NEW"),
+                () -> assertThat(outboxEvent.getStatus()).isEqualTo(OutboxStatus.NEW.name()),
                 () -> assertThat(outboxEvent.getPayload()).contains(response.transferId()),
                 () -> assertThat(outboxEvent.getPayload()).contains(tenantId.toString())
         );
@@ -188,7 +199,7 @@ class TransferControllerIntegrationTest {
 
         var updatedOutboxEvent = outboxEventRepository.findById(createdOutboxEvent.getId()).orElseThrow();
         assertAll(
-                () -> assertThat(updatedOutboxEvent.getStatus()).isEqualTo("PUBLISHED"),
+                () -> assertThat(updatedOutboxEvent.getStatus()).isEqualTo(OutboxStatus.PUBLISHED.name()),
                 () -> assertThat(updatedOutboxEvent.getPublishedAt()).isNotNull()
         );
 
@@ -264,6 +275,65 @@ class TransferControllerIntegrationTest {
     }
 
     @Test
+    void shouldGetTransferById() throws Exception {
+        var tenantId = UUID.randomUUID();
+        var sourceWalletId = createWallet(tenantId, "EUR");
+        var destinationWalletId = createWallet(tenantId, "EUR");
+        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(new BigDecimal("120.00"))
+                .currency("EUR")
+                .reference("Get transfer")
+                .build();
+
+        var createResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        var createdTransfer = objectMapper.readValue(createResult.getResponse().getContentAsString(), TransferResponse.class);
+
+        var result = mockMvc.perform(get(TRANSFER_PATH, tenantId, createdTransfer.transferId()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        var response = objectMapper.readValue(result.getResponse().getContentAsString(), TransferResponse.class);
+
+        assertAll(
+                () -> assertThat(response.transferId()).isEqualTo(createdTransfer.transferId()),
+                () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
+                () -> assertThat(response.sourceWalletId()).isEqualTo(sourceWalletId),
+                () -> assertThat(response.destinationWalletId()).isEqualTo(destinationWalletId),
+                () -> assertThat(response.amount()).isEqualByComparingTo(new BigDecimal("120.00")),
+                () -> assertThat(response.currency()).isEqualTo(EUR),
+                () -> assertThat(response.status()).isEqualTo(COMPLETED),
+                () -> assertThat(response.reference()).isEqualTo("Get transfer")
+        );
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenTransferDoesNotExist() throws Exception {
+        var tenantId = UUID.randomUUID();
+        var transferId = UUID.randomUUID();
+
+        var result = mockMvc.perform(get(TRANSFER_PATH, tenantId, transferId))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).contains("Transfer with id"),
+                () -> assertThat(error.errors()).isNull()
+        );
+    }
+
+    @Test
     void shouldReturnBadRequestWhenTransferringToSameWallet() throws Exception {
         // given
         var tenantId = UUID.randomUUID();
@@ -332,8 +402,8 @@ class TransferControllerIntegrationTest {
         var destinationWalletId = createWallet(tenantId, "EUR");
         deposit(tenantId, sourceWalletId, "1000.00", "EUR");
 
-        var counterBefore = counterCount("safetransfer.transfer.created", "outcome", "success");
-        var timerBefore = timerCount("safetransfer.transfer.duration", "outcome", "success");
+        var counterBefore = counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS);
+        var timerBefore = timerCount(MetricName.TRANSFER_DURATION, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS);
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -349,9 +419,9 @@ class TransferControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
 
-        assertThat(counterCount("safetransfer.transfer.created", "outcome", "success"))
+        assertThat(counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS))
                 .isEqualTo(counterBefore + 1.0d);
-        assertThat(timerCount("safetransfer.transfer.duration", "outcome", "success"))
+        assertThat(timerCount(MetricName.TRANSFER_DURATION, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS))
                 .isEqualTo(timerBefore + 1L);
     }
 
@@ -362,8 +432,8 @@ class TransferControllerIntegrationTest {
         var destinationWalletId = createWallet(tenantId, "EUR");
         deposit(tenantId, sourceWalletId, "50.00", "EUR");
 
-        var counterBefore = counterCount("safetransfer.transfer.created", "outcome", "insufficient_funds");
-        var timerBefore = timerCount("safetransfer.transfer.duration", "outcome", "insufficient_funds");
+        var counterBefore = counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS);
+        var timerBefore = timerCount(MetricName.TRANSFER_DURATION, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS);
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -379,9 +449,9 @@ class TransferControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
 
-        assertThat(counterCount("safetransfer.transfer.created", "outcome", "insufficient_funds"))
+        assertThat(counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS))
                 .isEqualTo(counterBefore + 1.0d);
-        assertThat(timerCount("safetransfer.transfer.duration", "outcome", "insufficient_funds"))
+        assertThat(timerCount(MetricName.TRANSFER_DURATION, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS))
                 .isEqualTo(timerBefore + 1L);
     }
 
@@ -619,16 +689,16 @@ class TransferControllerIntegrationTest {
         return objectMapper.readValue(responseBody, ErrorDto.class);
     }
 
-    private double counterCount(String meterName, String tagKey, String tagValue) {
-        var counter = meterRegistry.find(meterName)
-                .tag(tagKey, tagValue)
+    private double counterCount(MetricName meterName, MetricTag tagKey, TransferMetricOutcome tagValue) {
+        var counter = meterRegistry.find(meterName.getValue())
+                .tag(tagKey.getValue(), tagValue.getTagValue())
                 .counter();
         return counter == null ? 0.0d : counter.count();
     }
 
-    private long timerCount(String meterName, String tagKey, String tagValue) {
-        var timer = meterRegistry.find(meterName)
-                .tag(tagKey, tagValue)
+    private long timerCount(MetricName meterName, MetricTag tagKey, TransferMetricOutcome tagValue) {
+        var timer = meterRegistry.find(meterName.getValue())
+                .tag(tagKey.getValue(), tagValue.getTagValue())
                 .timer();
         return timer == null ? 0L : timer.count();
     }

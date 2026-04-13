@@ -7,5 +7,7 @@ import java.util.UUID;
 
 public interface SpringDataTransferRepository extends JpaRepository<TransferJpa, UUID> {
 
+    Optional<TransferJpa> findByIdAndTenantId(UUID id, UUID tenantId);
+
     Optional<TransferJpa> findByTenantIdAndIdempotencyKey(UUID tenantId, String idempotencyKey);
 }
