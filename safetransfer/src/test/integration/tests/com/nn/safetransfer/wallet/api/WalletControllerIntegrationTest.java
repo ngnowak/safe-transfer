@@ -520,7 +520,7 @@ class WalletControllerIntegrationTest {
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(transferRequest)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         // when
         var sourceResult = mockMvc.perform(get(BALANCE_PATH, tenantId, sourceWalletId))

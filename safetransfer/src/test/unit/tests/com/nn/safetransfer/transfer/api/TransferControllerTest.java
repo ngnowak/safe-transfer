@@ -7,6 +7,7 @@ import com.nn.safetransfer.transfer.api.mapper.TransferResultMapper;
 import com.nn.safetransfer.transfer.application.TransferError;
 import com.nn.safetransfer.transfer.application.TransferService;
 import com.nn.safetransfer.transfer.domain.Transfer;
+import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import org.junit.jupiter.api.Test;
@@ -100,8 +101,7 @@ class TransferControllerTest {
                 .tenantId(new TenantId(tenantId))
                 .sourceWalletId(new WalletId(sourceWalletId))
                 .destinationWalletId(new WalletId(destinationWalletId))
-                .amount(amount)
-                .currency(EUR)
+                .money(Money.of(amount, EUR))
                 .status(com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED)
                 .idempotencyKey(idempotencyKey)
                 .reference("Payment")

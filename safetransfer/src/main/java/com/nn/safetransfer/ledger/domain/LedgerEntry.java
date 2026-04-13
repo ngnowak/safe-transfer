@@ -1,6 +1,7 @@
 package com.nn.safetransfer.ledger.domain;
 
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
+import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import lombok.Builder;
@@ -20,8 +21,7 @@ public class LedgerEntry {
     private final TenantId tenantId;
     private final WalletId walletId;
     private final LedgerEntryType type;
-    private final BigDecimal amount;
-    private final CurrencyCode currency;
+    private final Money money;
     private final String reference;
     private final Instant createdAt;
 
@@ -31,8 +31,7 @@ public class LedgerEntry {
             TenantId tenantId,
             WalletId walletId,
             LedgerEntryType type,
-            BigDecimal amount,
-            CurrencyCode currency,
+            Money money,
             String reference,
             Instant createdAt
     ) {
@@ -40,13 +39,8 @@ public class LedgerEntry {
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
         this.walletId = Objects.requireNonNull(walletId, "walletId must not be null");
         this.type = Objects.requireNonNull(type, "type must not be null");
-        this.amount = Objects.requireNonNull(amount, "amount must not be null");
-        this.currency = Objects.requireNonNull(currency, "currency must not be null");
+        this.money = Objects.requireNonNull(money, "money must not be null");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
-
-        if (amount.signum() <= 0) {
-            throw new IllegalArgumentException("amount must be greater than zero");
-        }
 
         this.reference = reference;
     }
@@ -63,8 +57,7 @@ public class LedgerEntry {
                 .tenantId(tenantId)
                 .walletId(walletId)
                 .type(CREDIT)
-                .amount(amount)
-                .currency(currency)
+                .money(Money.of(amount, currency))
                 .reference(reference)
                 .createdAt(Instant.now())
                 .build();
@@ -82,10 +75,17 @@ public class LedgerEntry {
                 .tenantId(tenantId)
                 .walletId(walletId)
                 .type(DEBIT)
-                .amount(amount)
-                .currency(currency)
+                .money(Money.of(amount, currency))
                 .reference(reference)
                 .createdAt(Instant.now())
                 .build();
+    }
+
+    public BigDecimal getAmount() {
+        return money.amount();
+    }
+
+    public CurrencyCode getCurrency() {
+        return money.currency();
     }
 }

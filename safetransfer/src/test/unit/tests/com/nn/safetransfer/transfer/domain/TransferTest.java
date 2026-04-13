@@ -2,6 +2,7 @@ package com.nn.safetransfer.transfer.domain;
 
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
+import com.nn.safetransfer.wallet.domain.Money;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -37,6 +38,7 @@ class TransferTest {
                 () -> assertThat(transfer.getTenantId()).isEqualTo(tenantId),
                 () -> assertThat(transfer.getSourceWalletId()).isEqualTo(sourceWalletId),
                 () -> assertThat(transfer.getDestinationWalletId()).isEqualTo(destinationWalletId),
+                () -> assertThat(transfer.getMoney()).isEqualTo(Money.of(amount, EUR)),
                 () -> assertThat(transfer.getAmount()).isEqualByComparingTo(amount),
                 () -> assertThat(transfer.getCurrency()).isEqualTo(EUR),
                 () -> assertThat(transfer.getStatus()).isEqualTo(COMPLETED),
@@ -116,8 +118,7 @@ class TransferTest {
                 .tenantId(null)
                 .sourceWalletId(WalletId.create())
                 .destinationWalletId(WalletId.create())
-                .amount(new BigDecimal("10.00"))
-                .currency(EUR)
+                .money(Money.of(new BigDecimal("10.00"), EUR))
                 .status(COMPLETED)
                 .idempotencyKey("key")
                 .createdAt(Instant.now())
@@ -134,14 +135,13 @@ class TransferTest {
                 .tenantId(TenantId.create())
                 .sourceWalletId(WalletId.create())
                 .destinationWalletId(WalletId.create())
-                .amount(null)
-                .currency(EUR)
+                .money(null)
                 .status(COMPLETED)
                 .idempotencyKey("key")
                 .createdAt(Instant.now())
                 .build())
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("amount must not be null");
+                .hasMessage("money must not be null");
     }
 
     @Test
@@ -152,8 +152,7 @@ class TransferTest {
                 .tenantId(TenantId.create())
                 .sourceWalletId(WalletId.create())
                 .destinationWalletId(WalletId.create())
-                .amount(new BigDecimal("10.00"))
-                .currency(EUR)
+                .money(Money.of(new BigDecimal("10.00"), EUR))
                 .status(COMPLETED)
                 .idempotencyKey(null)
                 .createdAt(Instant.now())

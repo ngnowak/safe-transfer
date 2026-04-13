@@ -7,6 +7,7 @@ import com.nn.safetransfer.transfer.domain.TransferId;
 import com.nn.safetransfer.transfer.domain.TransferStatus;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.CustomerId;
+import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
 import com.nn.safetransfer.wallet.domain.WalletId;
@@ -52,8 +53,7 @@ class TransferResultMapperTest {
                 .tenantId(tenantId)
                 .sourceWalletId(sourceWallet.getId())
                 .destinationWalletId(destinationWallet.getId())
-                .amount(new BigDecimal("10.00"))
-                .currency(CurrencyCode.EUR)
+                .money(Money.of(new BigDecimal("10.00"), CurrencyCode.EUR))
                 .status(TransferStatus.COMPLETED)
                 .idempotencyKey("idem")
                 .reference("ref")

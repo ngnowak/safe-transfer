@@ -1,6 +1,7 @@
 package com.nn.safetransfer.transfer.domain;
 
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
+import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import lombok.Builder;
@@ -19,8 +20,7 @@ public class Transfer {
     private final TenantId tenantId;
     private final WalletId sourceWalletId;
     private final WalletId destinationWalletId;
-    private final BigDecimal amount;
-    private final CurrencyCode currency;
+    private final Money money;
     private final TransferStatus status;
     private final String idempotencyKey;
     private final String reference;
@@ -33,8 +33,7 @@ public class Transfer {
             TenantId tenantId,
             WalletId sourceWalletId,
             WalletId destinationWalletId,
-            BigDecimal amount,
-            CurrencyCode currency,
+            Money money,
             TransferStatus status,
             String idempotencyKey,
             String reference,
@@ -45,16 +44,11 @@ public class Transfer {
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
         this.sourceWalletId = Objects.requireNonNull(sourceWalletId, "sourceWalletId must not be null");
         this.destinationWalletId = Objects.requireNonNull(destinationWalletId, "destinationWalletId must not be null");
-        this.amount = Objects.requireNonNull(amount, "amount must not be null");
-        this.currency = Objects.requireNonNull(currency, "currency must not be null");
+        this.money = Objects.requireNonNull(money, "money must not be null");
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey must not be null");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
         this.newlyCreated = newlyCreated;
-
-        if (amount.signum() <= 0) {
-            throw new IllegalArgumentException("amount must be greater than zero");
-        }
 
         if (sourceWalletId.equals(destinationWalletId)) {
             throw new IllegalArgumentException("Source and destination wallets must be different");
@@ -77,13 +71,20 @@ public class Transfer {
                 .tenantId(tenantId)
                 .sourceWalletId(sourceWalletId)
                 .destinationWalletId(destinationWalletId)
-                .amount(amount)
-                .currency(currency)
+                .money(Money.of(amount, currency))
                 .status(COMPLETED)
                 .idempotencyKey(idempotencyKey)
                 .reference(reference)
                 .createdAt(Instant.now())
                 .newlyCreated(true)
                 .build();
+    }
+
+    public BigDecimal getAmount() {
+        return money.amount();
+    }
+
+    public CurrencyCode getCurrency() {
+        return money.currency();
     }
 }

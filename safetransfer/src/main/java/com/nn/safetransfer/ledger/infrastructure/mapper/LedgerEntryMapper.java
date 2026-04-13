@@ -5,6 +5,7 @@ import com.nn.safetransfer.ledger.domain.LedgerEntryId;
 import com.nn.safetransfer.ledger.domain.LedgerEntryType;
 import com.nn.safetransfer.ledger.infrastructure.persistence.LedgerEntryJpa;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
+import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import org.springframework.stereotype.Component;
@@ -31,8 +32,7 @@ public class LedgerEntryMapper {
                 .tenantId(new TenantId(jpa.getTenantId()))
                 .walletId(new WalletId(jpa.getWalletId()))
                 .type(LedgerEntryType.valueOf(jpa.getType()))
-                .amount(jpa.getAmount())
-                .currency(CurrencyCode.valueOf(jpa.getCurrency()))
+                .money(Money.of(jpa.getAmount(), CurrencyCode.valueOf(jpa.getCurrency())))
                 .reference(jpa.getReference())
                 .createdAt(jpa.getCreatedAt())
                 .build();

@@ -142,7 +142,7 @@ class OutboxPublisherFailureIntegrationTest {
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         assertThat(outboxEventRepository.findAll()).hasSize(1);
     }

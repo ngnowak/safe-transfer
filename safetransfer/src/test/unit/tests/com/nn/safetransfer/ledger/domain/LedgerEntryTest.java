@@ -1,6 +1,6 @@
 package com.nn.safetransfer.ledger.domain;
 
-import com.nn.safetransfer.wallet.domain.CurrencyCode;
+import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import org.junit.jupiter.api.Test;
@@ -34,6 +34,7 @@ class LedgerEntryTest {
                 () -> assertThat(entry.getTenantId()).isEqualTo(tenantId),
                 () -> assertThat(entry.getWalletId()).isEqualTo(walletId),
                 () -> assertThat(entry.getType()).isEqualTo(CREDIT),
+                () -> assertThat(entry.getMoney()).isEqualTo(Money.of(amount, PLN)),
                 () -> assertThat(entry.getAmount()).isEqualByComparingTo(amount),
                 () -> assertThat(entry.getCurrency()).isEqualTo(PLN),
                 () -> assertThat(entry.getReference()).isEqualTo(reference),
@@ -58,6 +59,7 @@ class LedgerEntryTest {
                 () -> assertThat(entry.getTenantId()).isEqualTo(tenantId),
                 () -> assertThat(entry.getWalletId()).isEqualTo(walletId),
                 () -> assertThat(entry.getType()).isEqualTo(DEBIT),
+                () -> assertThat(entry.getMoney()).isEqualTo(Money.of(amount, PLN)),
                 () -> assertThat(entry.getAmount()).isEqualByComparingTo(amount),
                 () -> assertThat(entry.getCurrency()).isEqualTo(PLN),
                 () -> assertThat(entry.getReference()).isEqualTo(reference),
@@ -122,11 +124,10 @@ class LedgerEntryTest {
                 .tenantId(TenantId.create())
                 .walletId(WalletId.create())
                 .type(CREDIT)
-                .amount(new BigDecimal("10.00"))
-                .currency(null)
+                .money(null)
                 .createdAt(Instant.now())
                 .build())
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("currency must not be null");
+                .hasMessage("money must not be null");
     }
 }

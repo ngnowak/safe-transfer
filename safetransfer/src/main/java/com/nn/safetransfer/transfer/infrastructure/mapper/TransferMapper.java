@@ -5,6 +5,7 @@ import com.nn.safetransfer.transfer.domain.TransferId;
 import com.nn.safetransfer.transfer.domain.TransferStatus;
 import com.nn.safetransfer.transfer.infrastructure.persistence.TransferJpa;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
+import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import org.springframework.stereotype.Component;
@@ -37,8 +38,7 @@ public class TransferMapper {
                 .tenantId(new TenantId(jpa.getTenantId()))
                 .sourceWalletId(new WalletId(jpa.getSourceWalletId()))
                 .destinationWalletId(new WalletId(jpa.getDestinationWalletId()))
-                .amount(jpa.getAmount())
-                .currency(CurrencyCode.valueOf(jpa.getCurrency()))
+                .money(Money.of(jpa.getAmount(), CurrencyCode.valueOf(jpa.getCurrency())))
                 .status(TransferStatus.valueOf(jpa.getStatus()))
                 .idempotencyKey(jpa.getIdempotencyKey())
                 .reference(jpa.getReference())

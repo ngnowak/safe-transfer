@@ -1,5 +1,6 @@
 package com.nn.safetransfer.transfer.api.mapper;
 
+import com.nn.safetransfer.common.api.mapper.AbstractResultMapper;
 import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.transfer.api.dto.TransferResponse;
 import com.nn.safetransfer.transfer.application.TransferError;
@@ -19,24 +20,20 @@ import static org.springframework.http.HttpStatus.OK;
 
 @RequiredArgsConstructor
 @Component
-public class TransferResultMapper {
+public class TransferResultMapper extends AbstractResultMapper<TransferError, Transfer, ResponseEntity<TransferResponse>> {
     private final TransferResponseMapper transferResponseMapper;
 
     public ResponseEntity<TransferResponse> toTransferResponse(Result<TransferError, Transfer> result) {
-        return switch (result) {
-            case Result.Success<TransferError, Transfer> success ->
-                mapSuccessResponse(success, transferResponseMapper::toResponse);
-            case Result.Failure<TransferError, ?> failure ->
-                throw mapToResponseStatusException(failure);
-        };
+        return mapResult(result, transfer -> ResponseEntity.ok(transferResponseMapper.toResponse(transfer)));
     }
 
-    private <T, R> ResponseEntity<R> mapSuccessResponse(final Result<?, T> result,
-                                                        final Function<T, R> responseCreator) {
+    @Override
+    protected ResponseEntity<TransferResponse> mapSuccess(Result<?, Transfer> result,
+                                                          Function<Transfer, ResponseEntity<TransferResponse>> successMapper) {
         return result.getValue()
-                .map(value -> {
-                    var status = value instanceof Transfer transfer && transfer.isNewlyCreated() ? CREATED : OK;
-                    return ResponseEntity.status(status).body(responseCreator.apply(value));
+                .map(transfer -> {
+                    var status = transfer.isNewlyCreated() ? CREATED : OK;
+                    return ResponseEntity.status(status).body(transferResponseMapper.toResponse(transfer));
                 })
                 .orElseGet(this::emptySuccessResponseEntity);
     }
@@ -45,10 +42,9 @@ public class TransferResultMapper {
         return ResponseEntity.noContent().build();
     }
 
-    private ResponseStatusException mapToResponseStatusException(final Result<TransferError, ?> result) {
-        var error = result.getError().orElseGet(() -> new TransferError.OtherError(new IllegalStateException("The unknown error occurred")));
+    @Override
+    protected ResponseStatusException mapFailure(TransferError error) {
         var errorMessage = error.getMessage();
-
         return switch (error) {
             case TransferError.SameWalletTransfer _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
             case TransferError.WalletNotFound _ -> new ResponseStatusException(NOT_FOUND, errorMessage);
