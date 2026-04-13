@@ -1,6 +1,7 @@
 package com.nn.safetransfer.outbox.application;
 
 import com.nn.safetransfer.audit.application.AuditConsumer;
+import com.nn.safetransfer.common.metrics.TransferMetrics;
 import com.nn.safetransfer.outbox.domain.EventType;
 import com.nn.safetransfer.outbox.domain.OutboxAggregateType;
 import com.nn.safetransfer.outbox.domain.OutboxEvent;
@@ -16,13 +17,18 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
+import static com.nn.safetransfer.outbox.domain.OutboxStatus.FAILED;
+import static com.nn.safetransfer.outbox.domain.OutboxStatus.FATAL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
 
 @ExtendWith(MockitoExtension.class)
 class OutboxPublisherImplTest {
@@ -33,12 +39,15 @@ class OutboxPublisherImplTest {
     @Mock
     private AuditConsumer auditConsumer;
 
+    @Mock
+    private TransferMetrics transferMetrics;
+
     private final OutboxPublisherProperties properties = new OutboxPublisherProperties(5000, 100, 3);
 
     @Test
     void shouldPublishPendingOutboxEvents() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties);
+        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties, transferMetrics);
         var event = buildOutboxEvent();
         given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
                 .willReturn(List.of(event));
@@ -57,12 +66,13 @@ class OutboxPublisherImplTest {
                 () -> assertThat(captor.getValue().status()).isEqualTo(OutboxStatus.PUBLISHED),
                 () -> assertThat(captor.getValue().publishedAt()).isNotNull()
         );
+        verify(transferMetrics).recordOutboxPublished(eq(TRANSFER_COMPLETED), anyLong());
     }
 
     @Test
     void shouldDoNothingWhenThereAreNoPendingEvents() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties);
+        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties, transferMetrics);
         given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
                 .willReturn(List.of());
 
@@ -77,7 +87,7 @@ class OutboxPublisherImplTest {
     @Test
     void shouldMarkEventAsFailedAndIncreaseRetryCountWhenConsumerThrows() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties);
+        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties, transferMetrics);
         var event = buildOutboxEvent();
         given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
                 .willReturn(List.of(event));
@@ -97,12 +107,13 @@ class OutboxPublisherImplTest {
                 () -> assertThat(captor.getValue().retryCount()).isEqualTo(1),
                 () -> assertThat(captor.getValue().publishedAt()).isNull()
         );
+        verify(transferMetrics).recordOutboxFailed(eq(TRANSFER_COMPLETED), eq(FAILED), anyLong());
     }
 
     @Test
     void shouldMarkEventAsFatalWhenMaxRetriesReached() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties);
+        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties, transferMetrics);
         var event = buildOutboxEvent().withRetryCount(2).withStatus(OutboxStatus.FAILED);
         given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
                 .willReturn(List.of(event));
@@ -121,6 +132,7 @@ class OutboxPublisherImplTest {
                 () -> assertThat(captor.getValue().status()).isEqualTo(OutboxStatus.FATAL),
                 () -> assertThat(captor.getValue().retryCount()).isEqualTo(3)
         );
+        verify(transferMetrics).recordOutboxFailed(eq(TRANSFER_COMPLETED), eq(FATAL), anyLong());
     }
 
     private OutboxEvent buildOutboxEvent() {

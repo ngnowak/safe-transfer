@@ -1,5 +1,7 @@
 package com.nn.safetransfer.transfer.application;
 
+import com.nn.safetransfer.common.metrics.TransferMetrics;
+import com.nn.safetransfer.common.metrics.TransferMetricOutcome;
 import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
@@ -31,18 +33,28 @@ public class TransferService {
     private final TransferRepository transferRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final OutboxEventFactory outboxEventFactory;
+    private final TransferMetrics transferMetrics;
 
     @Transactional
     public Result<TransferError, Transfer> transfer(TenantId tenantId, String idempotencyKey, CreateTransferRequest request) {
+        var sample = transferMetrics.startTransfer();
         log.info("Processing transfer: tenantId={}, idempotencyKey={}, source={}, destination={}, amount={}, currency={}",
                 tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId(), request.amount(), request.currency());
 
-        return transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
+        var result = transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
                 .<Result<TransferError, Transfer>>map(existing -> {
                     log.info("Returning existing transfer for idempotencyKey={}: transferId={}", idempotencyKey, existing.getId());
                     return Result.success(existing);
                 })
                 .orElseGet(() -> createTransferSafely(tenantId, idempotencyKey, request));
+
+        if (result.isSuccess()) {
+            transferMetrics.recordTransferSuccess(sample);
+        } else {
+            transferMetrics.recordTransferFailure(sample, metricOutcome(result.getError().orElseThrow()));
+        }
+
+        return result;
     }
 
     private Result<TransferError, Transfer> createTransferSafely(
@@ -159,5 +171,9 @@ public class TransferService {
                 transfer.getId(), sourceWalletId, destinationWalletId, request.amount());
 
         return Result.success(transfer);
+    }
+
+    private TransferMetricOutcome metricOutcome(TransferError error) {
+        return TransferMetricOutcome.from(error);
     }
 }

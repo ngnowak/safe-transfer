@@ -14,6 +14,7 @@ public class QueryBalanceUseCase {
     private final WalletRepository walletRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
 
+    // TODO return result
     @Transactional(readOnly = true)
     public BalanceResult handle(GetBalanceQuery query) {
         var wallet = walletRepository.findByIdAndTenantId(query.walletId(), query.tenantId())

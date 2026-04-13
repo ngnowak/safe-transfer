@@ -21,6 +21,7 @@ public class DepositService {
     private final WalletRepository walletRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
 
+    // TODO return result
     @Transactional
     public LedgerEntry deposit(
             TenantId tenantId,

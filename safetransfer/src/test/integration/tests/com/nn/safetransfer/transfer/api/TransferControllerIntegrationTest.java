@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
 import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEventRepository;
 import com.nn.safetransfer.common.api.ErrorDto;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
 import com.nn.safetransfer.outbox.application.OutboxPublisher;
 import com.nn.safetransfer.outbox.infrastructure.persistence.SpringDataOutboxEventRepository;
@@ -59,6 +60,9 @@ class TransferControllerIntegrationTest {
 
     @Autowired
     private OutboxPublisher outboxPublisher;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     @AfterEach
     void cleanUp() {
@@ -322,6 +326,66 @@ class TransferControllerIntegrationTest {
     }
 
     @Test
+    void shouldRecordSuccessTransferMetrics() throws Exception {
+        var tenantId = UUID.randomUUID();
+        var sourceWalletId = createWallet(tenantId, "EUR");
+        var destinationWalletId = createWallet(tenantId, "EUR");
+        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+
+        var counterBefore = counterCount("safetransfer.transfer.created", "outcome", "success");
+        var timerBefore = timerCount("safetransfer.transfer.duration", "outcome", "success");
+
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(new BigDecimal("100.00"))
+                .currency("EUR")
+                .reference("Metrics success")
+                .build();
+
+        mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        assertThat(counterCount("safetransfer.transfer.created", "outcome", "success"))
+                .isEqualTo(counterBefore + 1.0d);
+        assertThat(timerCount("safetransfer.transfer.duration", "outcome", "success"))
+                .isEqualTo(timerBefore + 1L);
+    }
+
+    @Test
+    void shouldRecordFailureTransferMetrics() throws Exception {
+        var tenantId = UUID.randomUUID();
+        var sourceWalletId = createWallet(tenantId, "EUR");
+        var destinationWalletId = createWallet(tenantId, "EUR");
+        deposit(tenantId, sourceWalletId, "50.00", "EUR");
+
+        var counterBefore = counterCount("safetransfer.transfer.created", "outcome", "insufficient_funds");
+        var timerBefore = timerCount("safetransfer.transfer.duration", "outcome", "insufficient_funds");
+
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(new BigDecimal("100.00"))
+                .currency("EUR")
+                .reference("Metrics failure")
+                .build();
+
+        mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict());
+
+        assertThat(counterCount("safetransfer.transfer.created", "outcome", "insufficient_funds"))
+                .isEqualTo(counterBefore + 1.0d);
+        assertThat(timerCount("safetransfer.transfer.duration", "outcome", "insufficient_funds"))
+                .isEqualTo(timerBefore + 1L);
+    }
+
+    @Test
     void shouldReturnNotFoundWhenSourceWalletDoesNotExist() throws Exception {
         // given
         var tenantId = UUID.randomUUID();
@@ -553,5 +617,19 @@ class TransferControllerIntegrationTest {
 
     private ErrorDto readError(String responseBody) throws Exception {
         return objectMapper.readValue(responseBody, ErrorDto.class);
+    }
+
+    private double counterCount(String meterName, String tagKey, String tagValue) {
+        var counter = meterRegistry.find(meterName)
+                .tag(tagKey, tagValue)
+                .counter();
+        return counter == null ? 0.0d : counter.count();
+    }
+
+    private long timerCount(String meterName, String tagKey, String tagValue) {
+        var timer = meterRegistry.find(meterName)
+                .tag(tagKey, tagValue)
+                .timer();
+        return timer == null ? 0L : timer.count();
     }
 }

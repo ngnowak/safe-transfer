@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class QueryWalletUseCase {
     private final WalletRepository walletRepository;
 
+    // TODO return result
     @Transactional(readOnly = true)
     public Wallet handle(GetWalletQuery query) {
         log.info("Querying wallet: walletId={}, tenantId={}", query.walletId(), query.tenantId());

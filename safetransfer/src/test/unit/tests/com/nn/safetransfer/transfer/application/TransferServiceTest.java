@@ -1,5 +1,7 @@
 package com.nn.safetransfer.transfer.application;
 
+import com.nn.safetransfer.common.metrics.TransferMetrics;
+import com.nn.safetransfer.common.metrics.TransferMetricOutcome;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
 import com.nn.safetransfer.ledger.domain.LedgerEntryType;
@@ -18,12 +20,14 @@ import com.nn.safetransfer.wallet.domain.Wallet;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import com.nn.safetransfer.wallet.domain.WalletRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import io.micrometer.core.instrument.Timer;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -43,9 +47,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class TransferServiceTest {
+
+    private Timer.Sample sample;
 
     @Mock
     private WalletRepository walletRepository;
@@ -62,8 +69,17 @@ class TransferServiceTest {
     @Mock
     private OutboxEventFactory outboxEventFactory;
 
+    @Mock
+    private TransferMetrics transferMetrics;
+
     @InjectMocks
     private TransferService transferService;
+
+    @BeforeEach
+    void setUp() {
+        sample = mock(Timer.Sample.class);
+        given(transferMetrics.startTransfer()).willReturn(sample);
+    }
 
     @Test
     void shouldReturnExistingTransferWhenIdempotencyKeyAlreadyExists() {
@@ -140,11 +156,13 @@ class TransferServiceTest {
 
         var ledgerEntries = ledgerCaptor.getAllValues();
         assertAll(
-                () -> assertThat(ledgerEntries.get(0).getType()).isEqualTo(LedgerEntryType.DEBIT),
+                () -> assertThat(ledgerEntries.getFirst().getType()).isEqualTo(LedgerEntryType.DEBIT),
                 () -> assertThat(ledgerEntries.get(1).getType()).isEqualTo(LedgerEntryType.CREDIT)
         );
         verify(outboxEventFactory).transferCompleted(transfer);
         verify(outboxEventRepository).save(any(OutboxEvent.class));
+        verify(transferMetrics).recordTransferSuccess(sample);
+        verify(transferMetrics, never()).recordTransferFailure(any(), any());
     }
 
     @Test
@@ -169,6 +187,8 @@ class TransferServiceTest {
                 () -> assertThat(result.getError()).containsInstanceOf(TransferError.SameWalletTransfer.class)
         );
         verify(walletRepository, never()).findByIdAndTenantIdForUpdate(any(), any());
+        verify(transferMetrics).recordTransferFailure(sample, TransferMetricOutcome.SAME_WALLET);
+        verify(transferMetrics, never()).recordTransferSuccess(any());
     }
 
     @Test
@@ -195,6 +215,7 @@ class TransferServiceTest {
                 () -> assertThat(result.isFailure()).isTrue(),
                 () -> assertThat(result.getError()).containsInstanceOf(TransferError.WalletNotFound.class)
         );
+        verify(transferMetrics).recordTransferFailure(sample, TransferMetricOutcome.WALLET_NOT_FOUND);
     }
 
     @Test

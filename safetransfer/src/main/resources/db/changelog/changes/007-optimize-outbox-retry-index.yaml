@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - changeSet:
+      id: 007-optimize-outbox-retry-index
+      author: nnowak
+      changes:
+        - dropIndex:
+            tableName: outbox_event
+            indexName: idx_outbox_event_status_occurred_at
+        - createIndex:
+            tableName: outbox_event
+            indexName: idx_outbox_event_status_retry_occurred_at
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: retry_count
+              - column:
+                  name: occurred_at

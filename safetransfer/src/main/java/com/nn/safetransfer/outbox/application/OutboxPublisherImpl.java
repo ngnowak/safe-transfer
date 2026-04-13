@@ -1,6 +1,7 @@
 package com.nn.safetransfer.outbox.application;
 
 import com.nn.safetransfer.audit.application.AuditConsumer;
+import com.nn.safetransfer.common.metrics.TransferMetrics;
 import com.nn.safetransfer.outbox.domain.OutboxEvent;
 import com.nn.safetransfer.outbox.domain.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class OutboxPublisherImpl implements OutboxPublisher {
     private final OutboxEventRepository outboxEventRepository;
     private final AuditConsumer auditConsumer;
     private final OutboxPublisherProperties properties;
+    private final TransferMetrics transferMetrics;
 
     @Override
     @Transactional
@@ -30,16 +32,24 @@ public class OutboxPublisherImpl implements OutboxPublisher {
         var publishedCount = 0;
 
         for (var outboxEvent : pendingEvents) {
+            var start = System.nanoTime();
             try {
                 auditConsumer.consume(outboxEvent);
                 var publishedEvent = outboxEvent
                         .withStatus(PUBLISHED)
                         .withPublishedAt(Instant.now());
                 outboxEventRepository.save(publishedEvent);
+                transferMetrics.recordOutboxPublished(outboxEvent.eventType(), System.nanoTime() - start);
                 publishedCount++;
                 log.debug("Published outbox event {}", outboxEvent.id());
             } catch (OutboxProcessingException ex) {
-                outboxEventRepository.save(markFailed(outboxEvent));
+                var failedEvent = markFailed(outboxEvent);
+                outboxEventRepository.save(failedEvent);
+                transferMetrics.recordOutboxFailed(
+                        outboxEvent.eventType(),
+                        failedEvent.status(),
+                        System.nanoTime() - start
+                );
                 log.warn("Failed to publish outbox event {}", outboxEvent.id(), ex);
             }
         }
