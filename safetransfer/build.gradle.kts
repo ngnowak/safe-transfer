@@ -71,6 +71,12 @@ sourceSets {
 		compileClasspath += sourceSets.main.get().output + sourceSets["testUtils"].output
 		runtimeClasspath += output + compileClasspath
 	}
+	create("e2e") {
+		java.srcDir("src/test/e2e/tests")
+		resources.srcDir("src/test/e2e/resources")
+		compileClasspath += sourceSets.main.get().output + sourceSets["testUtils"].output
+		runtimeClasspath += output + compileClasspath
+	}
 }
 
 configurations {
@@ -83,6 +89,11 @@ configurations {
 	named("integrationTestRuntimeOnly") { extendsFrom(configurations.testRuntimeOnly.get()) }
 	named("integrationTestCompileOnly") { extendsFrom(configurations.testCompileOnly.get()) }
 	named("integrationTestAnnotationProcessor") { extendsFrom(configurations.testAnnotationProcessor.get()) }
+
+	named("e2eImplementation") { extendsFrom(configurations.testImplementation.get()) }
+	named("e2eRuntimeOnly") { extendsFrom(configurations.testRuntimeOnly.get()) }
+	named("e2eCompileOnly") { extendsFrom(configurations.testCompileOnly.get()) }
+	named("e2eAnnotationProcessor") { extendsFrom(configurations.testAnnotationProcessor.get()) }
 
 	named("testUtilsImplementation") { extendsFrom(configurations.testImplementation.get()) }
 	named("testUtilsRuntimeOnly") { extendsFrom(configurations.testRuntimeOnly.get()) }
@@ -104,6 +115,13 @@ val integrationTest by tasks.registering(Test::class) {
 	classpath = sourceSets["integrationTest"].runtimeClasspath
 }
 
+val e2eTest by tasks.registering(Test::class) {
+	description = "Runs end-to-end tests against a running application."
+	group = "verification"
+	testClassesDirs = sourceSets["e2e"].output.classesDirs
+	classpath = sourceSets["e2e"].runtimeClasspath
+}
+
 val testAll by tasks.registering {
 	description = "Runs all tests (unit and integration)."
 	group = "verification"
@@ -119,9 +137,11 @@ idea {
 		afterEvaluate {
 			testSources.from(sourceSets["unitTest"].allJava.srcDirs)
 			testSources.from(sourceSets["integrationTest"].allJava.srcDirs)
+			testSources.from(sourceSets["e2e"].allJava.srcDirs)
 			testSources.from(sourceSets["testUtils"].allJava.srcDirs)
 			testResources.from(sourceSets["unitTest"].resources.srcDirs)
 			testResources.from(sourceSets["integrationTest"].resources.srcDirs)
+			testResources.from(sourceSets["e2e"].resources.srcDirs)
 			testResources.from(sourceSets["testUtils"].resources.srcDirs)
 		}
 	}

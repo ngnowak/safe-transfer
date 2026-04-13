@@ -28,6 +28,10 @@ public class TransferMapper {
     }
 
     public Transfer toDomain(TransferJpa jpa) {
+        return toDomain(jpa, false);
+    }
+
+    public Transfer toDomain(TransferJpa jpa, boolean newlyCreated) {
         return Transfer.builder()
                 .id(new TransferId(jpa.getId()))
                 .tenantId(new TenantId(jpa.getTenantId()))
@@ -39,6 +43,7 @@ public class TransferMapper {
                 .idempotencyKey(jpa.getIdempotencyKey())
                 .reference(jpa.getReference())
                 .createdAt(jpa.getCreatedAt())
+                .newlyCreated(newlyCreated)
                 .build();
     }
 }

@@ -19,7 +19,7 @@ public class TransferRepositoryJpaAdapter implements TransferRepository {
     @Override
     public Transfer save(Transfer transfer) {
         var saved = springDataTransferRepository.save(transferMapper.toEntity(transfer));
-        return transferMapper.toDomain(saved);
+        return transferMapper.toDomain(saved, transfer.isNewlyCreated());
     }
 
     @Override
