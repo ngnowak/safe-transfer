@@ -10,9 +10,6 @@ jobs:
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: safetransfer
 
     steps:
       - name: Checkout
@@ -36,15 +33,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-results
-          path: safetransfer/build/test-results/test/**/*.xml
+          path: build/test-results/test/**/*.xml
           if-no-files-found: ignore
 
   integration:
     name: Integration tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: safetransfer
 
     steps:
       - name: Checkout
@@ -68,15 +62,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: integration-test-results
-          path: safetransfer/build/test-results/integrationTest/**/*.xml
+          path: build/test-results/integrationTest/**/*.xml
           if-no-files-found: ignore
 
   e2e:
     name: E2E tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: safetransfer
 
     steps:
       - name: Checkout
@@ -150,7 +141,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-results
-          path: safetransfer/build/test-results/e2eTest/**/*.xml
+          path: build/test-results/e2eTest/**/*.xml
           if-no-files-found: ignore
 
       - name: Upload application log
@@ -158,7 +149,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-application-log
-          path: safetransfer/app.log
+          path: app.log
           if-no-files-found: ignore
 
       - name: Stop application

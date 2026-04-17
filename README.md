@@ -17,7 +17,7 @@ The project is intentionally built as a modular monolith. It uses PostgreSQL for
 - Asynchronous audit consumer
 - Global exception handling
 - Swagger / OpenAPI
-- Dockerized local PostgreSQL
+- Dockerized local PostgreSQL and Kafka
 - Unit and integration tests
 
 ## Stack
@@ -146,7 +146,7 @@ sequenceDiagram
 
 ### Start PostgreSQL
 
-The application points to [`docker/docker-compose.yml`](/C:/Users/Kamil/IdeaProjects/safetransfer/safetransfer/docker/docker-compose.yml).
+The application points to [`docker/docker-compose.yml`](/C:/Users/Kamil/IdeaProjects/safetransfer/docker/docker-compose.yml).
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d
