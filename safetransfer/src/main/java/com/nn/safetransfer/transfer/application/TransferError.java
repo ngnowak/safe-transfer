@@ -56,6 +56,14 @@ public sealed interface TransferError {
         }
     }
 
+    record IdempotencyKeyConflict(String idempotencyKey) implements TransferError {
+        @Override
+        public String getMessage() {
+            return "Idempotency key '%s' was already used with a different transfer request"
+                    .formatted(idempotencyKey);
+        }
+    }
+
     record OtherError(String message) implements TransferError {
         public OtherError(final Throwable throwable) {
             this(throwable.getMessage());

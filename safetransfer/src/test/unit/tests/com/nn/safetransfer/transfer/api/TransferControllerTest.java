@@ -110,6 +110,7 @@ class TransferControllerTest {
                 .money(Money.of(amount, EUR))
                 .status(com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED)
                 .idempotencyKey(idempotencyKey)
+                .requestHash("request-hash")
                 .reference("Payment")
                 .createdAt(Instant.now())
                 .build();

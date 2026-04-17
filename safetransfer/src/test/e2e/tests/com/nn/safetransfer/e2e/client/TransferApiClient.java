@@ -57,6 +57,14 @@ public class TransferApiClient {
             CreateTransferRequest request,
             String idempotencyKey
     ) throws IOException, InterruptedException {
+        return createTransferConflict(tenantId, request, idempotencyKey);
+    }
+
+    public ErrorDto createTransferConflict(
+            UUID tenantId,
+            CreateTransferRequest request,
+            String idempotencyKey
+    ) throws IOException, InterruptedException {
         return httpClient.post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,

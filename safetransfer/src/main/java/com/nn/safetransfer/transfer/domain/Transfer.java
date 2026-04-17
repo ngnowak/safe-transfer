@@ -23,6 +23,7 @@ public class Transfer {
     private final Money money;
     private final TransferStatus status;
     private final String idempotencyKey;
+    private final String requestHash;
     private final String reference;
     private final Instant createdAt;
     private final boolean newlyCreated;
@@ -36,6 +37,7 @@ public class Transfer {
             Money money,
             TransferStatus status,
             String idempotencyKey,
+            String requestHash,
             String reference,
             Instant createdAt,
             boolean newlyCreated
@@ -47,6 +49,7 @@ public class Transfer {
         this.money = Objects.requireNonNull(money, "money must not be null");
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey must not be null");
+        this.requestHash = Objects.requireNonNull(requestHash, "requestHash must not be null");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
         this.newlyCreated = newlyCreated;
 
@@ -64,6 +67,7 @@ public class Transfer {
             BigDecimal amount,
             CurrencyCode currency,
             String idempotencyKey,
+            String requestHash,
             String reference
     ) {
         return Transfer.builder()
@@ -74,10 +78,32 @@ public class Transfer {
                 .money(Money.of(amount, currency))
                 .status(COMPLETED)
                 .idempotencyKey(idempotencyKey)
+                .requestHash(requestHash)
                 .reference(reference)
                 .createdAt(Instant.now())
                 .newlyCreated(true)
                 .build();
+    }
+
+    public static Transfer completed(
+            TenantId tenantId,
+            WalletId sourceWalletId,
+            WalletId destinationWalletId,
+            BigDecimal amount,
+            CurrencyCode currency,
+            String idempotencyKey,
+            String reference
+    ) {
+        return completed(
+                tenantId,
+                sourceWalletId,
+                destinationWalletId,
+                amount,
+                currency,
+                idempotencyKey,
+                "request-hash",
+                reference
+        );
     }
 
     public BigDecimal getAmount() {

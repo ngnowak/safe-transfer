@@ -276,7 +276,7 @@ class TransferControllerIntegrationTest {
     }
 
     @Test
-    void shouldReturnExistingTransferWhenIdempotencyKeyIsReusedWithDifferentRequestBody() throws Exception {
+    void shouldReturnConflictWhenIdempotencyKeyIsReusedWithDifferentRequestBody() throws Exception {
         // given
         var tenantId = UUID.randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
@@ -312,22 +312,21 @@ class TransferControllerIntegrationTest {
                         .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(differentRequest)))
-                .andExpect(status().isOk())
+                .andExpect(status().isConflict())
                 .andReturn();
 
         // then
         var firstResponse = objectMapper.readValue(firstResult.getResponse().getContentAsString(), TransferResponse.class);
-        var secondResponse = objectMapper.readValue(secondResult.getResponse().getContentAsString(), TransferResponse.class);
+        var error = readError(secondResult.getResponse().getContentAsString());
 
         assertAll(
-                () -> assertThat(secondResponse.transferId()).isEqualTo(firstResponse.transferId()),
-                () -> assertThat(secondResponse.destinationWalletId()).isEqualTo(firstDestinationWalletId),
-                () -> assertThat(secondResponse.amount()).isEqualByComparingTo(ONE_HUNDRED),
-                () -> assertThat(secondResponse.reference()).isEqualTo("Original idempotent transfer"),
+                () -> assertThat(error.errorMessage()).contains("Idempotency key").contains("different transfer request"),
                 () -> assertThat(transferRepository.findAll()).hasSize(1),
                 () -> assertThat(ledgerEntryRepository.findAll()).hasSize(3),
                 () -> assertThat(outboxEventRepository.findAll()).hasSize(1)
         );
+
+        assertThat(transferRepository.findAll().getFirst().getId()).isEqualTo(UUID.fromString(firstResponse.transferId()));
 
         assertThat(ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(sourceWalletId)))
                 .isEqualByComparingTo(NINE_HUNDRED);

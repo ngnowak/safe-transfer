@@ -66,6 +66,9 @@ public class TransferJpa {
     @Column(name = "idempotency_key")
     private String idempotencyKey;
 
+    @Column(name = "request_hash")
+    private String requestHash;
+
     @Column(name = "reference")
     private String reference;
 

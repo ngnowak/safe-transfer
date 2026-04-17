@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-add-transfer-request-hash
+      author: nnowak
+      changes:
+        - addColumn:
+            tableName: transfer
+            columns:
+              - column:
+                  name: request_hash
+                  type: varchar(64)
+                  defaultValue: "0000000000000000000000000000000000000000000000000000000000000000"
+                  constraints:
+                    nullable: false
+

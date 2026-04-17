@@ -35,19 +35,18 @@ public class TransferService {
     private final OutboxEventRepository outboxEventRepository;
     private final OutboxEventFactory outboxEventFactory;
     private final TransferMetrics transferMetrics;
+    private final TransferRequestHasher transferRequestHasher;
 
     @Transactional
     public Result<TransferError, Transfer> transfer(TenantId tenantId, String idempotencyKey, CreateTransferRequest request) {
         var sample = transferMetrics.startTransfer();
+        var requestHash = transferRequestHasher.hash(request);
         log.info("Processing transfer: tenantId={}, idempotencyKey={}, source={}, destination={}, amount={}, currency={}",
                 tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId(), request.amount(), request.currency());
 
         var result = transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
-                .<Result<TransferError, Transfer>>map(existing -> {
-                    log.info("Returning existing transfer for idempotencyKey={}: transferId={}", idempotencyKey, existing.getId());
-                    return Result.success(existing);
-                })
-                .orElseGet(() -> createTransferSafely(tenantId, idempotencyKey, request));
+                .<Result<TransferError, Transfer>>map(existing -> handleExistingTransfer(existing, idempotencyKey, requestHash))
+                .orElseGet(() -> createTransferSafely(tenantId, idempotencyKey, request, requestHash));
 
         if (result.isSuccess()) {
             transferMetrics.recordTransferSuccess(sample);
@@ -58,10 +57,26 @@ public class TransferService {
         return result;
     }
 
+    private Result<TransferError, Transfer> handleExistingTransfer(
+            Transfer existingTransfer,
+            String idempotencyKey,
+            String requestHash
+    ) {
+        if (!existingTransfer.getRequestHash().equals(requestHash)) {
+            log.warn("Idempotency key reused with a different request body: idempotencyKey={}, transferId={}",
+                    idempotencyKey, existingTransfer.getId());
+            return Result.failure(new TransferError.IdempotencyKeyConflict(idempotencyKey));
+        }
+
+        log.info("Returning existing transfer for idempotencyKey={}: transferId={}", idempotencyKey, existingTransfer.getId());
+        return Result.success(existingTransfer);
+    }
+
     private Result<TransferError, Transfer> createTransferSafely(
             TenantId tenantId,
             String idempotencyKey,
-            CreateTransferRequest request
+            CreateTransferRequest request,
+            String requestHash
     ) {
         var sourceWalletId = new WalletId(request.sourceWalletId());
         var destinationWalletId = new WalletId(request.destinationWalletId());
@@ -133,6 +148,7 @@ public class TransferService {
                             request.amount(),
                             requestCurrency,
                             idempotencyKey,
+                            requestHash,
                             request.reference()
                     )
             );
@@ -142,7 +158,7 @@ public class TransferService {
             log.warn("Transfer for tenantId={} and idempotencyKey={} already exists:", tenantId, idempotencyKey);
 
             return transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
-                    .<Result<TransferError, Transfer>>map(Result::success)
+                    .<Result<TransferError, Transfer>>map(existing -> handleExistingTransfer(existing, idempotencyKey, requestHash))
                     .orElseThrow(() -> ex);
         }
 

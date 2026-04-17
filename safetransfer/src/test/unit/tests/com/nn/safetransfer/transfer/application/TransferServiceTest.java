@@ -73,6 +73,9 @@ class TransferServiceTest {
     @Mock
     private TransferMetrics transferMetrics;
 
+    @Mock
+    private TransferRequestHasher transferRequestHasher;
+
     @InjectMocks
     private TransferService transferService;
 
@@ -80,6 +83,7 @@ class TransferServiceTest {
     void setUp() {
         sample = mock(Timer.Sample.class);
         given(transferMetrics.startTransfer()).willReturn(sample);
+        given(transferRequestHasher.hash(any(CreateTransferRequest.class))).willReturn("request-hash");
     }
 
     @Test
@@ -103,6 +107,31 @@ class TransferServiceTest {
         );
         verifyNoInteractions(walletRepository);
         verifyNoInteractions(ledgerEntryRepository);
+    }
+
+    @Test
+    void shouldReturnFailureWhenIdempotencyKeyAlreadyExistsForDifferentRequestBody() {
+        // given
+        var tenantId = TenantId.create();
+        var idempotencyKey = "existing-key";
+        var existingTransfer = createTestTransfer(tenantId);
+        var request = createTransferRequest();
+
+        given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey))
+                .willReturn(Optional.of(existingTransfer));
+        given(transferRequestHasher.hash(request)).willReturn("different-request-hash");
+
+        // when
+        var result = transferService.transfer(tenantId, idempotencyKey, request);
+
+        // then
+        assertAll(
+                () -> assertThat(result.isFailure()).isTrue(),
+                () -> assertThat(result.getError()).containsInstanceOf(TransferError.IdempotencyKeyConflict.class)
+        );
+        verifyNoInteractions(walletRepository);
+        verifyNoInteractions(ledgerEntryRepository);
+        verify(transferMetrics).recordTransferFailure(sample, TransferMetricOutcome.IDEMPOTENCY_CONFLICT);
     }
 
     @Test
@@ -352,6 +381,45 @@ class TransferServiceTest {
         assertAll(
                 () -> assertThat(result.isSuccess()).isTrue(),
                 () -> assertThat(result.getValue()).contains(existingTransfer)
+        );
+    }
+
+    @Test
+    void shouldHandleDataIntegrityViolationByReturningConflictForDifferentRequestBody() {
+        // given
+        var tenantId = TenantId.create();
+        var idempotencyKey = "race-key";
+        var sourceWalletId = WalletId.create();
+        var destinationWalletId = WalletId.create();
+        var sourceWallet = buildWallet(sourceWalletId, tenantId, EUR);
+        var destinationWallet = buildWallet(destinationWalletId, tenantId, EUR);
+        var existingTransfer = createTestTransfer(tenantId);
+
+        var request = new CreateTransferRequest(
+                sourceWalletId.value(), destinationWalletId.value(),
+                new BigDecimal("50.00"), "EUR", null
+        );
+
+        given(transferRequestHasher.hash(request)).willReturn("different-request-hash");
+        given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey))
+                .willReturn(Optional.empty())
+                .willReturn(Optional.of(existingTransfer));
+        given(walletRepository.findByIdAndTenantIdForUpdate(sourceWalletId, tenantId))
+                .willReturn(Optional.of(sourceWallet));
+        given(walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId))
+                .willReturn(Optional.of(destinationWallet));
+        given(ledgerEntryRepository.calculateBalance(tenantId, sourceWalletId))
+                .willReturn(new BigDecimal("200.00"));
+        given(transferRepository.save(any(Transfer.class)))
+                .willThrow(new DataIntegrityViolationException("Duplicate idempotency key"));
+
+        // when
+        var result = transferService.transfer(tenantId, idempotencyKey, request);
+
+        // then
+        assertAll(
+                () -> assertThat(result.isFailure()).isTrue(),
+                () -> assertThat(result.getError()).containsInstanceOf(TransferError.IdempotencyKeyConflict.class)
         );
     }
 

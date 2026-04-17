@@ -142,6 +142,35 @@ class TransferFlowE2eTest {
     }
 
     @Test
+    void shouldRejectSameIdempotencyKeyWithDifferentRequestBody() throws Exception {
+        var tenantId = randomUUID();
+        var sourceWallet = createWallet(tenantId, randomUUID(), EUR);
+        var firstDestinationWallet = createWallet(tenantId, randomUUID(), EUR);
+        var secondDestinationWallet = createWallet(tenantId, randomUUID(), EUR);
+        deposit(tenantId, sourceWallet.walletId(), ONE_HUNDRED, EUR, "e2e idempotency conflict deposit");
+
+        var idempotencyKey = randomUUID().toString();
+        var firstTransfer = TRANSFER_API_CLIENT.createTransfer(
+                tenantId,
+                createTransferRequest(sourceWallet, firstDestinationWallet, TWENTY_FIVE, "e2e original idempotent transfer"),
+                idempotencyKey
+        );
+
+        var error = TRANSFER_API_CLIENT.createTransferConflict(
+                tenantId,
+                createTransferRequest(sourceWallet, secondDestinationWallet, TWENTY_FIVE, "e2e different idempotent transfer"),
+                idempotencyKey
+        );
+
+        assertThat(error.errorMessage()).contains("Idempotency key").contains("different transfer request");
+        assertThat(TRANSFER_API_CLIENT.getTransfer(tenantId, UUID.fromString(firstTransfer.transferId())).destinationWalletId())
+                .isEqualTo(firstDestinationWallet.walletId());
+        assertBalance(tenantId, sourceWallet.walletId(), SEVENTY_FIVE);
+        assertBalance(tenantId, firstDestinationWallet.walletId(), TWENTY_FIVE);
+        assertBalance(tenantId, secondDestinationWallet.walletId(), BigDecimal.ZERO);
+    }
+
+    @Test
     void shouldNotTransferWalletsAcrossTenants() throws Exception {
         var owningTenantId = randomUUID();
         var otherTenantId = randomUUID();
@@ -202,8 +231,8 @@ class TransferFlowE2eTest {
 
         assertThat(error.errors())
                 .anySatisfy(message -> assertThat(message).contains("amount").contains("0.01"));
-        assertBalance(tenantId, sourceWallet.walletId(), BigDecimal.ZERO);
-        assertBalance(tenantId, destinationWallet.walletId(), BigDecimal.ZERO);
+        assertBalance(tenantId, sourceWallet.walletId(), ZERO);
+        assertBalance(tenantId, destinationWallet.walletId(), ZERO);
     }
 
     private WalletResponse createWallet(UUID tenantId, UUID customerId, CurrencyCode currency) throws Exception {

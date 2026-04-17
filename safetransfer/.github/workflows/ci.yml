@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    name: Unit and integration tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Run unit and integration tests
+        run: ./gradlew testAll
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Start infrastructure
+        run: docker compose -f docker/docker-compose.yml up -d
+
+      - name: Wait for infrastructure
+        run: |
+          for attempt in {1..60}; do
+            POSTGRES_STATUS="$(docker inspect -f '{{.State.Health.Status}}' safe-transfer-postgres)"
+            if [ "$POSTGRES_STATUS" = "healthy" ] && timeout 1 bash -c '</dev/tcp/localhost/9092' 2>/dev/null; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          docker compose -f docker/docker-compose.yml ps
+          docker compose -f docker/docker-compose.yml logs postgres kafka
+          exit 1
+
+      - name: Build application jar
+        run: ./gradlew bootJar
+
+      - name: Start application
+        run: |
+          JAR_FILE="$(find build/libs -name '*.jar' ! -name '*plain.jar' | head -n 1)"
+          java -jar "$JAR_FILE" \
+            --spring.profiles.active=local \
+            --spring.docker.compose.enabled=false \
+            > app.log 2>&1 &
+          echo $! > app.pid
+
+      - name: Wait for application health
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8080/actuator/health > /dev/null; then
+              exit 0
+            fi
+
+            if ! kill -0 "$(cat app.pid)" 2>/dev/null; then
+              cat app.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          cat app.log
+          exit 1
+
+      - name: Run E2E tests
+        env:
+          SAFETRANSFER_BASE_URL: http://localhost:8080
+        run: ./gradlew e2eTest
+
+      - name: Upload application log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-application-log
+          path: app.log
+          if-no-files-found: ignore
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [ -f app.pid ] && kill -0 "$(cat app.pid)" 2>/dev/null; then
+            kill "$(cat app.pid)"
+          fi
+
+      - name: Stop infrastructure
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v

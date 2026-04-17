@@ -56,6 +56,7 @@ class TransferResultMapperTest {
                 .money(Money.of(new BigDecimal("10.00"), CurrencyCode.EUR))
                 .status(TransferStatus.COMPLETED)
                 .idempotencyKey("idem")
+                .requestHash("request-hash")
                 .reference("ref")
                 .createdAt(Instant.now())
                 .build();

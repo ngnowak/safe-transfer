@@ -13,6 +13,7 @@ public enum TransferMetricOutcome {
     WALLET_NOT_ACTIVE("wallet_not_active"),
     CURRENCY_MISMATCH("currency_mismatch"),
     SAME_WALLET("same_wallet"),
+    IDEMPOTENCY_CONFLICT("idempotency_conflict"),
     OTHER_ERROR("other_error");
 
     private final String tagValue;
@@ -25,6 +26,7 @@ public enum TransferMetricOutcome {
             case TransferError.WalletNotActive ignored -> WALLET_NOT_ACTIVE;
             case TransferError.CurrencyMismatch ignored -> CURRENCY_MISMATCH;
             case TransferError.SameWalletTransfer ignored -> SAME_WALLET;
+            case TransferError.IdempotencyKeyConflict ignored -> IDEMPOTENCY_CONFLICT;
             case TransferError.OtherError ignored -> OTHER_ERROR;
         };
     }

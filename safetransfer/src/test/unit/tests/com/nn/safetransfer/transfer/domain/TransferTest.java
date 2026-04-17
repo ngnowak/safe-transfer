@@ -43,6 +43,7 @@ class TransferTest {
                 () -> assertThat(transfer.getCurrency()).isEqualTo(EUR),
                 () -> assertThat(transfer.getStatus()).isEqualTo(COMPLETED),
                 () -> assertThat(transfer.getIdempotencyKey()).isEqualTo(idempotencyKey),
+                () -> assertThat(transfer.getRequestHash()).isEqualTo("request-hash"),
                 () -> assertThat(transfer.getReference()).isEqualTo(reference),
                 () -> assertThat(transfer.getCreatedAt()).isNotNull(),
                 () -> assertThat(transfer.isNewlyCreated()).isTrue()
@@ -121,6 +122,7 @@ class TransferTest {
                 .money(Money.of(new BigDecimal("10.00"), EUR))
                 .status(COMPLETED)
                 .idempotencyKey("key")
+                .requestHash("request-hash")
                 .createdAt(Instant.now())
                 .build())
                 .isInstanceOf(NullPointerException.class)
@@ -138,6 +140,7 @@ class TransferTest {
                 .money(null)
                 .status(COMPLETED)
                 .idempotencyKey("key")
+                .requestHash("request-hash")
                 .createdAt(Instant.now())
                 .build())
                 .isInstanceOf(NullPointerException.class)
@@ -155,6 +158,7 @@ class TransferTest {
                 .money(Money.of(new BigDecimal("10.00"), EUR))
                 .status(COMPLETED)
                 .idempotencyKey(null)
+                .requestHash("request-hash")
                 .createdAt(Instant.now())
                 .build())
                 .isInstanceOf(NullPointerException.class)

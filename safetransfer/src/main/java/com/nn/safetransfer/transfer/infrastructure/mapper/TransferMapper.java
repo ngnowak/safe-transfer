@@ -23,6 +23,7 @@ public class TransferMapper {
                 .currency(transfer.getCurrency().name())
                 .status(transfer.getStatus().name())
                 .idempotencyKey(transfer.getIdempotencyKey())
+                .requestHash(transfer.getRequestHash())
                 .reference(transfer.getReference())
                 .createdAt(transfer.getCreatedAt())
                 .build();
@@ -41,6 +42,7 @@ public class TransferMapper {
                 .money(Money.of(jpa.getAmount(), CurrencyCode.valueOf(jpa.getCurrency())))
                 .status(TransferStatus.valueOf(jpa.getStatus()))
                 .idempotencyKey(jpa.getIdempotencyKey())
+                .requestHash(jpa.getRequestHash())
                 .reference(jpa.getReference())
                 .createdAt(jpa.getCreatedAt())
                 .newlyCreated(newlyCreated)

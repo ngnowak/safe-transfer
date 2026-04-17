@@ -39,7 +39,8 @@ class TransferMapperTest {
                 () -> assertThat(entity.getTenantId()).isEqualTo(transfer.getTenantId().value()),
                 () -> assertThat(entity.getAmount()).isEqualByComparingTo("25.00"),
                 () -> assertThat(entity.getCurrency()).isEqualTo("EUR"),
-                () -> assertThat(entity.getIdempotencyKey()).isEqualTo("idem")
+                () -> assertThat(entity.getIdempotencyKey()).isEqualTo("idem"),
+                () -> assertThat(entity.getRequestHash()).isEqualTo("request-hash")
         );
     }
 
@@ -54,6 +55,7 @@ class TransferMapperTest {
                 .currency("EUR")
                 .status("COMPLETED")
                 .idempotencyKey("idem")
+                .requestHash("request-hash")
                 .reference("ref")
                 .createdAt(Instant.parse("2026-04-13T10:15:30Z"))
                 .build();
@@ -78,6 +80,7 @@ class TransferMapperTest {
                 .currency("EUR")
                 .status("COMPLETED")
                 .idempotencyKey("idem")
+                .requestHash("request-hash")
                 .reference("ref")
                 .createdAt(Instant.parse("2026-04-13T10:15:30Z"))
                 .build();
