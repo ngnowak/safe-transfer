@@ -27,13 +27,27 @@ public class OutboxEventRepositoryJpaAdapter implements OutboxEventRepository {
     @SuppressWarnings("unchecked")
     public List<OutboxEvent> claimTopRetryableOrderByOccurredAtAsc(int limit, int maxRetries) {
         var query = entityManager.createNativeQuery("""
-                select *
-                from outbox_event
-                where status in ('NEW', 'FAILED')
-                  and retry_count < :maxRetries
-                order by occurred_at asc
-                for update skip locked
-                limit :limit
+                with claimed as (
+                    select id
+                    from outbox_event
+                    where retry_count < :maxRetries
+                      and (
+                          status in ('NEW', 'FAILED')
+                          or (
+                              status = 'PROCESSING'
+                              and claimed_at < now() - interval '5 minutes'
+                          )
+                      )
+                    order by occurred_at asc
+                    for update skip locked
+                    limit :limit
+                )
+                update outbox_event event
+                set status = 'PROCESSING',
+                    claimed_at = now()
+                from claimed
+                where event.id = claimed.id
+                returning event.*
                 """, OutboxEventJpa.class);
         query.setParameter("maxRetries", maxRetries);
         query.setParameter("limit", limit);

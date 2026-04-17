@@ -60,6 +60,9 @@ public class OutboxEventJpa {
     @Column(name = "occurred_at")
     private Instant occurredAt;
 
+    @Column(name = "claimed_at")
+    private Instant claimedAt;
+
     @Column(name = "published_at")
     private Instant publishedAt;
 

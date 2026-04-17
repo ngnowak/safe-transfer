@@ -168,6 +168,14 @@ Swagger UI:
 
 - `http://localhost:8080/swagger-ui.html`
 
+### Run the full Docker stack
+
+This starts PostgreSQL, Kafka, and the application container from [`docker/docker-compose-with-app.yml`](/C:/Users/Kamil/IdeaProjects/safetransfer/docker/docker-compose-with-app.yml).
+
+```bash
+docker compose -f docker/docker-compose-with-app.yml up --build
+```
+
 ## Tests
 
 Unit tests:

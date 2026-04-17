@@ -2,10 +2,10 @@ package com.nn.safetransfer.outbox.application;
 
 import com.nn.safetransfer.common.metrics.TransferMetrics;
 import com.nn.safetransfer.outbox.domain.OutboxEvent;
-import com.nn.safetransfer.outbox.domain.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -19,15 +19,15 @@ import static com.nn.safetransfer.outbox.domain.OutboxStatus.PUBLISHED;
 @RequiredArgsConstructor
 public class OutboxPublisherImpl implements OutboxPublisher {
 
-    private final OutboxEventRepository outboxEventRepository;
+    private final OutboxPublishingTransactions outboxPublishingTransactions;
     private final OutboxEventDispatcher outboxEventDispatcher;
     private final OutboxPublisherProperties properties;
     private final TransferMetrics transferMetrics;
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int publishPending(int batchSize) {
-        var pendingEvents = outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(batchSize, properties.maxRetries());
+        var pendingEvents = outboxPublishingTransactions.claimPending(batchSize, properties.maxRetries());
         var publishedCount = 0;
 
         for (var outboxEvent : pendingEvents) {
@@ -36,14 +36,15 @@ public class OutboxPublisherImpl implements OutboxPublisher {
                 outboxEventDispatcher.dispatch(outboxEvent);
                 var publishedEvent = outboxEvent
                         .withStatus(PUBLISHED)
+                        .withClaimedAt(null)
                         .withPublishedAt(Instant.now());
-                outboxEventRepository.save(publishedEvent);
+                outboxPublishingTransactions.save(publishedEvent);
                 transferMetrics.recordOutboxPublished(outboxEvent.eventType(), System.nanoTime() - start);
                 publishedCount++;
                 log.debug("Published outbox event {}", outboxEvent.id());
             } catch (OutboxProcessingException ex) {
                 var failedEvent = markFailed(outboxEvent);
-                outboxEventRepository.save(failedEvent);
+                outboxPublishingTransactions.save(failedEvent);
                 transferMetrics.recordOutboxFailed(
                         outboxEvent.eventType(),
                         failedEvent.status(),
@@ -62,6 +63,7 @@ public class OutboxPublisherImpl implements OutboxPublisher {
 
         return outboxEvent
                 .withRetryCount(nextRetryCount)
+                .withClaimedAt(null)
                 .withStatus(nextStatus);
     }
 }

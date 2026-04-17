@@ -24,6 +24,7 @@ class OutboxEventMapperTest {
         var tenantId = UUID.randomUUID();
         var aggregateId = UUID.randomUUID();
         var occurredAt = Instant.parse("2026-04-02T10:15:30Z");
+        var claimedAt = Instant.parse("2026-04-02T10:16:00Z");
         var publishedAt = Instant.parse("2026-04-02T10:16:30Z");
         var outboxEvent = OutboxEvent.builder()
                 .id(id)
@@ -34,6 +35,7 @@ class OutboxEventMapperTest {
                 .payload("{\"transferId\":\"123\"}")
                 .status(OutboxStatus.NEW)
                 .occurredAt(occurredAt)
+                .claimedAt(claimedAt)
                 .publishedAt(publishedAt)
                 .retryCount(2)
                 .correlationId("corr-123")
@@ -53,6 +55,7 @@ class OutboxEventMapperTest {
                 () -> assertThat(entity.getPayload()).isEqualTo("{\"transferId\":\"123\"}"),
                 () -> assertThat(entity.getStatus()).isEqualTo("NEW"),
                 () -> assertThat(entity.getOccurredAt()).isEqualTo(occurredAt),
+                () -> assertThat(entity.getClaimedAt()).isEqualTo(claimedAt),
                 () -> assertThat(entity.getPublishedAt()).isEqualTo(publishedAt),
                 () -> assertThat(entity.getRetryCount()).isEqualTo(2),
                 () -> assertThat(entity.getCorrelationId()).isEqualTo("corr-123"),
@@ -67,6 +70,7 @@ class OutboxEventMapperTest {
         var tenantId = UUID.randomUUID();
         var aggregateId = UUID.randomUUID();
         var occurredAt = Instant.parse("2026-04-02T10:15:30Z");
+        var claimedAt = Instant.parse("2026-04-02T10:16:00Z");
         var publishedAt = Instant.parse("2026-04-02T10:16:30Z");
         var entity = OutboxEventJpa.builder()
                 .id(id)
@@ -77,6 +81,7 @@ class OutboxEventMapperTest {
                 .payload("{\"transferId\":\"123\"}")
                 .status("PUBLISHED")
                 .occurredAt(occurredAt)
+                .claimedAt(claimedAt)
                 .publishedAt(publishedAt)
                 .retryCount(1)
                 .correlationId("corr-123")
@@ -96,6 +101,7 @@ class OutboxEventMapperTest {
                 () -> assertThat(outboxEvent.payload()).isEqualTo("{\"transferId\":\"123\"}"),
                 () -> assertThat(outboxEvent.status()).isEqualTo(OutboxStatus.PUBLISHED),
                 () -> assertThat(outboxEvent.occurredAt()).isEqualTo(occurredAt),
+                () -> assertThat(outboxEvent.claimedAt()).isEqualTo(claimedAt),
                 () -> assertThat(outboxEvent.publishedAt()).isEqualTo(publishedAt),
                 () -> assertThat(outboxEvent.retryCount()).isEqualTo(1),
                 () -> assertThat(outboxEvent.correlationId()).isEqualTo("corr-123"),

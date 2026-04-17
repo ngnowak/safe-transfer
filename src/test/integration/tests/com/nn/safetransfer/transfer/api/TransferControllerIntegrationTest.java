@@ -7,20 +7,18 @@ import com.nn.safetransfer.common.api.ErrorDto;
 import com.nn.safetransfer.common.metrics.MetricName;
 import com.nn.safetransfer.common.metrics.MetricTag;
 import com.nn.safetransfer.common.metrics.TransferMetricOutcome;
-import io.micrometer.core.instrument.MeterRegistry;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
 import com.nn.safetransfer.outbox.application.OutboxPublisher;
 import com.nn.safetransfer.outbox.domain.OutboxStatus;
 import com.nn.safetransfer.outbox.infrastructure.persistence.SpringDataOutboxEventRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.api.dto.TransferResponse;
-import com.nn.safetransfer.transfer.domain.TransferStatus;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
-import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.infrastructure.persistence.SpringDataWalletRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,9 +27,22 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import static com.nn.safetransfer.TestAmounts.FIFTY;
+import static com.nn.safetransfer.TestAmounts.FIVE_HUNDRED;
+import static com.nn.safetransfer.TestAmounts.NINE_HUNDRED;
+import static com.nn.safetransfer.TestAmounts.ONE_FIFTY;
+import static com.nn.safetransfer.TestAmounts.ONE_HUNDRED;
+import static com.nn.safetransfer.TestAmounts.ONE_THOUSAND;
+import static com.nn.safetransfer.TestAmounts.ONE_TWENTY;
+import static com.nn.safetransfer.TestAmounts.SEVEN_HUNDRED_FIFTY;
+import static com.nn.safetransfer.TestAmounts.THREE_HUNDRED;
+import static com.nn.safetransfer.TestAmounts.TWO_HUNDRED_FIFTY;
+import static com.nn.safetransfer.TestAmounts.ZERO;
 import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
 import static com.nn.safetransfer.outbox.domain.OutboxAggregateType.TRANSFER;
-import static com.nn.safetransfer.TestAmounts.*;
+import static com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED;
+import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
+import static java.util.UUID.randomUUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -47,8 +58,6 @@ class TransferControllerIntegrationTest {
     private static final String TRANSFERS_PATH = "/api/v1/tenants/{tenantId}/transfers";
     private static final String TRANSFER_PATH = "/api/v1/tenants/{tenantId}/transfers/{transferId}";
     private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
-    private static final String EUR = CurrencyCode.EUR.name();
-    private static final String COMPLETED = TransferStatus.COMPLETED.name();
 
     @Autowired
     private MockMvc mockMvc;
@@ -88,22 +97,22 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldTransferFundsSuccessfully() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+        var tenantId = randomUUID();
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(TWO_HUNDRED_FIFTY)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Test transfer")
                 .build();
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header(IDEMPOTENCY_KEY_HEADER, UUID.randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY_HEADER, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -167,10 +176,10 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldPublishTransferOutboxEventAndCreateAuditEvent() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -181,7 +190,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         var transferResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -223,12 +232,12 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnSameTransferForIdempotentRequest() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
 
-        var idempotencyKey = UUID.randomUUID().toString();
+        var idempotencyKey = randomUUID().toString();
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
@@ -278,13 +287,13 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnConflictWhenIdempotencyKeyIsReusedWithDifferentRequestBody() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var firstDestinationWalletId = createWallet(tenantId, "EUR");
         var secondDestinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
 
-        var idempotencyKey = UUID.randomUUID().toString();
+        var idempotencyKey = randomUUID().toString();
         var firstRequest = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(firstDestinationWalletId))
@@ -339,17 +348,17 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldAllowSameIdempotencyKeyForDifferentTenants() throws Exception {
         // given
-        var firstTenantId = UUID.randomUUID();
-        var secondTenantId = UUID.randomUUID();
-        var sharedIdempotencyKey = UUID.randomUUID().toString();
+        var firstTenantId = randomUUID();
+        var secondTenantId = randomUUID();
+        var sharedIdempotencyKey = randomUUID().toString();
 
         var firstSourceWalletId = createWallet(firstTenantId, "EUR");
         var firstDestinationWalletId = createWallet(firstTenantId, "EUR");
-        deposit(firstTenantId, firstSourceWalletId, "1000.00", "EUR");
+        deposit(firstTenantId, firstSourceWalletId, ONE_THOUSAND, "EUR");
 
         var secondSourceWalletId = createWallet(secondTenantId, "EUR");
         var secondDestinationWalletId = createWallet(secondTenantId, "EUR");
-        deposit(secondTenantId, secondSourceWalletId, "1000.00", "EUR");
+        deposit(secondTenantId, secondSourceWalletId, ONE_THOUSAND, "EUR");
 
         var firstRequest = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(firstSourceWalletId))
@@ -395,10 +404,10 @@ class TransferControllerIntegrationTest {
 
     @Test
     void shouldGetTransferById() throws Exception {
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -409,7 +418,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         var createResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -429,16 +438,16 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(response.sourceWalletId()).isEqualTo(sourceWalletId),
                 () -> assertThat(response.destinationWalletId()).isEqualTo(destinationWalletId),
                 () -> assertThat(response.amount()).isEqualByComparingTo(ONE_TWENTY),
-                () -> assertThat(response.currency()).isEqualTo(EUR),
-                () -> assertThat(response.status()).isEqualTo(COMPLETED),
+                () -> assertThat(response.currency()).isEqualTo(EUR.name()),
+                () -> assertThat(response.status()).isEqualTo(COMPLETED.name()),
                 () -> assertThat(response.reference()).isEqualTo("Get transfer")
         );
     }
 
     @Test
     void shouldReturnNotFoundWhenTransferDoesNotExist() throws Exception {
-        var tenantId = UUID.randomUUID();
-        var transferId = UUID.randomUUID();
+        var tenantId = randomUUID();
+        var transferId = randomUUID();
 
         var result = mockMvc.perform(get(TRANSFER_PATH, tenantId, transferId))
                 .andExpect(status().isNotFound())
@@ -455,7 +464,7 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnBadRequestWhenTransferringToSameWallet() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var walletId = createWallet(tenantId, "EUR");
 
         var request = CreateTransferRequest.builder()
@@ -467,7 +476,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -485,10 +494,10 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnConflictWhenInsufficientFunds() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "50.00", "EUR");
+        deposit(tenantId, sourceWalletId, FIFTY, "EUR");
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -499,7 +508,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
@@ -516,10 +525,10 @@ class TransferControllerIntegrationTest {
 
     @Test
     void shouldRecordSuccessTransferMetrics() throws Exception {
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
 
         var counterBefore = counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS);
         var timerBefore = timerCount(MetricName.TRANSFER_DURATION, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS);
@@ -533,7 +542,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
@@ -546,10 +555,10 @@ class TransferControllerIntegrationTest {
 
     @Test
     void shouldRecordFailureTransferMetrics() throws Exception {
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "50.00", "EUR");
+        deposit(tenantId, sourceWalletId, FIFTY, "EUR");
 
         var counterBefore = counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS);
         var timerBefore = timerCount(MetricName.TRANSFER_DURATION, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS);
@@ -563,7 +572,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
@@ -577,11 +586,11 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnNotFoundWhenSourceWalletDoesNotExist() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var destinationWalletId = createWallet(tenantId, "EUR");
 
         var request = CreateTransferRequest.builder()
-                .sourceWalletId(UUID.randomUUID())
+                .sourceWalletId(randomUUID())
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
                 .currency("EUR")
@@ -589,7 +598,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
@@ -607,20 +616,20 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnNotFoundWhenDestinationWalletDoesNotExist() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "500.00", "EUR");
+        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, "EUR");
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
-                .destinationWalletId(UUID.randomUUID())
+                .destinationWalletId(randomUUID())
                 .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .build();
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
@@ -638,10 +647,10 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnBadRequestWhenCurrencyDoesNotMatchSourceWallet() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "500.00", "EUR");
+        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, "EUR");
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -652,7 +661,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -670,10 +679,10 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnBadRequestWhenDestinationWalletHasDifferentCurrency() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
         var destinationWalletId = createWallet(tenantId, "PLN");
-        deposit(tenantId, sourceWalletId, "500.00", "EUR");
+        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, "EUR");
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -684,7 +693,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -702,17 +711,17 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnValidationErrorWhenAmountIsZero() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var request = CreateTransferRequest.builder()
-                .sourceWalletId(UUID.randomUUID())
-                .destinationWalletId(UUID.randomUUID())
+                .sourceWalletId(randomUUID())
+                .destinationWalletId(randomUUID())
                 .amount(ZERO)
                 .currency("EUR")
                 .build();
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -730,10 +739,10 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldTransferEntireBalance() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
+        var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, "PLN");
         var destinationWalletId = createWallet(tenantId, "PLN");
-        deposit(tenantId, sourceWalletId, "300.00", "PLN");
+        deposit(tenantId, sourceWalletId, THREE_HUNDRED, "PLN");
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -745,7 +754,7 @@ class TransferControllerIntegrationTest {
 
         // when
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
@@ -760,11 +769,11 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldReturnNotFoundWhenWalletBelongsToDifferentTenant() throws Exception {
         // given
-        var tenantId = UUID.randomUUID();
-        var otherTenantId = UUID.randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "500.00", "EUR");
+        var tenantId = randomUUID();
+        var otherTenantId = randomUUID();
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, "EUR");
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -775,7 +784,7 @@ class TransferControllerIntegrationTest {
 
         // when / then - use different tenant
         mockMvc.perform(post(TRANSFERS_PATH, otherTenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Idempotency-Key", randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());
@@ -785,7 +794,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateWalletRequest(UUID.randomUUID(), currency)
+                                new CreateWalletRequest(randomUUID(), currency)
                         )))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -795,11 +804,11 @@ class TransferControllerIntegrationTest {
         ).walletId();
     }
 
-    private void deposit(UUID tenantId, String walletId, String amount, String currency) throws Exception {
+    private void deposit(UUID tenantId, String walletId, BigDecimal amount, String currency) throws Exception {
         mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new DepositRequest(new BigDecimal(amount), currency, "Test deposit")
+                                new DepositRequest(amount, currency, "Test deposit")
                         )))
                 .andExpect(status().isOk());
     }

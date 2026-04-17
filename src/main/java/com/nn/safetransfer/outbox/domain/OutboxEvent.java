@@ -17,6 +17,7 @@ public record OutboxEvent(
         String payload,
         OutboxStatus status,
         Instant occurredAt,
+        Instant claimedAt,
         Instant publishedAt,
         int retryCount,
         String correlationId,

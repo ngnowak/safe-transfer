@@ -4,7 +4,6 @@ import com.nn.safetransfer.common.metrics.TransferMetrics;
 import com.nn.safetransfer.outbox.domain.EventType;
 import com.nn.safetransfer.outbox.domain.OutboxAggregateType;
 import com.nn.safetransfer.outbox.domain.OutboxEvent;
-import com.nn.safetransfer.outbox.domain.OutboxEventRepository;
 import com.nn.safetransfer.outbox.domain.OutboxStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,7 +32,7 @@ import static org.mockito.Mockito.eq;
 class OutboxPublisherImplTest {
 
     @Mock
-    private OutboxEventRepository outboxEventRepository;
+    private OutboxPublishingTransactions outboxPublishingTransactions;
 
     @Mock
     private OutboxEventDispatcher outboxEventDispatcher;
@@ -46,11 +45,11 @@ class OutboxPublisherImplTest {
     @Test
     void shouldPublishPendingOutboxEvents() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, outboxEventDispatcher, properties, transferMetrics);
+        var publisher = new OutboxPublisherImpl(outboxPublishingTransactions, outboxEventDispatcher, properties, transferMetrics);
         var event = buildOutboxEvent();
-        given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
+        given(outboxPublishingTransactions.claimPending(10, 3))
                 .willReturn(List.of(event));
-        given(outboxEventRepository.save(any(OutboxEvent.class)))
+        given(outboxPublishingTransactions.save(any(OutboxEvent.class)))
                 .willAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -61,7 +60,7 @@ class OutboxPublisherImplTest {
         verify(outboxEventDispatcher).dispatch(event);
         assertAll(
                 () -> assertThat(published).isEqualTo(1),
-                () -> verify(outboxEventRepository).save(captor.capture()),
+                () -> verify(outboxPublishingTransactions).save(captor.capture()),
                 () -> assertThat(captor.getValue().status()).isEqualTo(OutboxStatus.PUBLISHED),
                 () -> assertThat(captor.getValue().publishedAt()).isNotNull()
         );
@@ -71,8 +70,8 @@ class OutboxPublisherImplTest {
     @Test
     void shouldDoNothingWhenThereAreNoPendingEvents() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, outboxEventDispatcher, properties, transferMetrics);
-        given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
+        var publisher = new OutboxPublisherImpl(outboxPublishingTransactions, outboxEventDispatcher, properties, transferMetrics);
+        given(outboxPublishingTransactions.claimPending(10, 3))
                 .willReturn(List.of());
 
         // when
@@ -86,11 +85,11 @@ class OutboxPublisherImplTest {
     @Test
     void shouldMarkEventAsFailedAndIncreaseRetryCountWhenConsumerThrows() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, outboxEventDispatcher, properties, transferMetrics);
+        var publisher = new OutboxPublisherImpl(outboxPublishingTransactions, outboxEventDispatcher, properties, transferMetrics);
         var event = buildOutboxEvent();
-        given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
+        given(outboxPublishingTransactions.claimPending(10, 3))
                 .willReturn(List.of(event));
-        given(outboxEventRepository.save(any(OutboxEvent.class)))
+        given(outboxPublishingTransactions.save(any(OutboxEvent.class)))
                 .willAnswer(inv -> inv.getArgument(0));
         doThrow(new OutboxProcessingException("boom", new IllegalStateException("boom"))).when(outboxEventDispatcher).dispatch(event);
 
@@ -101,7 +100,7 @@ class OutboxPublisherImplTest {
         var captor = ArgumentCaptor.forClass(OutboxEvent.class);
         assertAll(
                 () -> assertThat(published).isZero(),
-                () -> verify(outboxEventRepository).save(captor.capture()),
+                () -> verify(outboxPublishingTransactions).save(captor.capture()),
                 () -> assertThat(captor.getValue().status()).isEqualTo(OutboxStatus.FAILED),
                 () -> assertThat(captor.getValue().retryCount()).isEqualTo(1),
                 () -> assertThat(captor.getValue().publishedAt()).isNull()
@@ -112,11 +111,11 @@ class OutboxPublisherImplTest {
     @Test
     void shouldMarkEventAsFatalWhenMaxRetriesReached() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, outboxEventDispatcher, properties, transferMetrics);
+        var publisher = new OutboxPublisherImpl(outboxPublishingTransactions, outboxEventDispatcher, properties, transferMetrics);
         var event = buildOutboxEvent().withRetryCount(2).withStatus(OutboxStatus.FAILED);
-        given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
+        given(outboxPublishingTransactions.claimPending(10, 3))
                 .willReturn(List.of(event));
-        given(outboxEventRepository.save(any(OutboxEvent.class)))
+        given(outboxPublishingTransactions.save(any(OutboxEvent.class)))
                 .willAnswer(inv -> inv.getArgument(0));
         doThrow(new OutboxProcessingException("boom", new IllegalStateException("boom"))).when(outboxEventDispatcher).dispatch(event);
 
@@ -127,7 +126,7 @@ class OutboxPublisherImplTest {
         var captor = ArgumentCaptor.forClass(OutboxEvent.class);
         assertAll(
                 () -> assertThat(published).isZero(),
-                () -> verify(outboxEventRepository).save(captor.capture()),
+                () -> verify(outboxPublishingTransactions).save(captor.capture()),
                 () -> assertThat(captor.getValue().status()).isEqualTo(OutboxStatus.FATAL),
                 () -> assertThat(captor.getValue().retryCount()).isEqualTo(3)
         );

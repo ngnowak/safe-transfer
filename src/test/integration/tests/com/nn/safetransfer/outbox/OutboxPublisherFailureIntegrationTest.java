@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -67,6 +68,9 @@ class OutboxPublisherFailureIntegrationTest {
 
     @Autowired
     private FailingAuditConsumer failingAuditConsumer;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
@@ -123,6 +127,32 @@ class OutboxPublisherFailureIntegrationTest {
                 () -> assertThat(outboxEvent.getRetryCount()).isEqualTo(3),
                 () -> assertThat(outboxEvent.getPublishedAt()).isNull(),
                 () -> assertThat(auditEventRepository.findAll()).isEmpty()
+        );
+    }
+
+    @Test
+    void shouldRetryStaleProcessingOutboxEvent() throws Exception {
+        // given
+        createTransferProducingOutboxEvent();
+        var outboxEventId = outboxEventRepository.findAll().getFirst().getId();
+        jdbcTemplate.update("""
+                update outbox_event
+                set status = 'PROCESSING',
+                    claimed_at = now() - interval '10 minutes'
+                where id = ?
+                """, outboxEventId);
+
+        // when
+        var published = outboxPublisher.publishPending(10);
+
+        // then
+        var outboxEvent = outboxEventRepository.findById(outboxEventId).orElseThrow();
+        assertAll(
+                () -> assertThat(published).isZero(),
+                () -> assertThat(failingAuditConsumer.invocationCount()).isEqualTo(1),
+                () -> assertThat(outboxEvent.getStatus()).isEqualTo("FAILED"),
+                () -> assertThat(outboxEvent.getRetryCount()).isEqualTo(1),
+                () -> assertThat(outboxEvent.getClaimedAt()).isNull()
         );
     }
 

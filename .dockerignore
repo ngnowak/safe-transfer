@@ -1,0 +1,14 @@
+.git
+.github
+.gradle
+.idea
+build
+out
+
+*.iml
+*.iws
+*.ipr
+
+INTERVIEW.md
+plan.md
+Zilch - Java proposal .pdf
