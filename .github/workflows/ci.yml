@@ -2,12 +2,14 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 jobs:
-  build-and-test:
+  unit:
+    name: Unit tests
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: safetransfer
@@ -16,23 +18,156 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 25
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "25"
+          java-version: 25
+          cache: gradle
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
 
-      - name: Build and run tests
-        run: ./gradlew test integrationTest
+      - name: Run unit tests
+        run: ./gradlew test
 
-      - name: Upload test reports
-        if: failure()
+      - name: Upload unit test results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports
-          path: |
-            safetransfer/build/reports/tests
-            safetransfer/build/test-results
+          name: unit-test-results
+          path: safetransfer/build/test-results/test/**/*.xml
+          if-no-files-found: ignore
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safetransfer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Run integration tests
+        run: ./gradlew integrationTest
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: safetransfer/build/test-results/integrationTest/**/*.xml
+          if-no-files-found: ignore
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: safetransfer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Start infrastructure
+        run: docker compose -f docker/docker-compose.yml up -d
+
+      - name: Wait for infrastructure
+        run: |
+          for attempt in {1..60}; do
+            POSTGRES_STATUS="$(docker inspect -f '{{.State.Health.Status}}' safe-transfer-postgres)"
+            if [ "$POSTGRES_STATUS" = "healthy" ] && timeout 1 bash -c '</dev/tcp/localhost/9092' 2>/dev/null; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          docker compose -f docker/docker-compose.yml ps
+          docker compose -f docker/docker-compose.yml logs postgres kafka
+          exit 1
+
+      - name: Build application jar
+        run: ./gradlew bootJar
+
+      - name: Start application
+        run: |
+          JAR_FILE="$(find build/libs -name '*.jar' ! -name '*plain.jar' | head -n 1)"
+          java -jar "$JAR_FILE" \
+            --spring.profiles.active=local \
+            --spring.docker.compose.enabled=false \
+            > app.log 2>&1 &
+          echo $! > app.pid
+
+      - name: Wait for application health
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8080/actuator/health > /dev/null; then
+              exit 0
+            fi
+
+            if ! kill -0 "$(cat app.pid)" 2>/dev/null; then
+              cat app.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          cat app.log
+          exit 1
+
+      - name: Run E2E tests
+        env:
+          SAFETRANSFER_BASE_URL: http://localhost:8080
+        run: ./gradlew e2eTest
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: safetransfer/build/test-results/e2eTest/**/*.xml
+          if-no-files-found: ignore
+
+      - name: Upload application log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-application-log
+          path: safetransfer/app.log
+          if-no-files-found: ignore
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [ -f app.pid ] && kill -0 "$(cat app.pid)" 2>/dev/null; then
+            kill "$(cat app.pid)"
+          fi
+
+      - name: Stop infrastructure
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v
