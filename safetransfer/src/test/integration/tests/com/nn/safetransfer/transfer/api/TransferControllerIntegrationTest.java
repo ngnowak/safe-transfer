@@ -31,6 +31,7 @@ import java.util.UUID;
 
 import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
 import static com.nn.safetransfer.outbox.domain.OutboxAggregateType.TRANSFER;
+import static com.nn.safetransfer.TestAmounts.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -95,7 +96,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("250.00"))
+                .amount(TWO_HUNDRED_FIFTY)
                 .currency("EUR")
                 .reference("Test transfer")
                 .build();
@@ -118,7 +119,7 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
                 () -> assertThat(response.sourceWalletId()).isEqualTo(sourceWalletId),
                 () -> assertThat(response.destinationWalletId()).isEqualTo(destinationWalletId),
-                () -> assertThat(response.amount()).isEqualByComparingTo(new BigDecimal("250.00")),
+                () -> assertThat(response.amount()).isEqualByComparingTo(TWO_HUNDRED_FIFTY),
                 () -> assertThat(response.currency()).isEqualTo("EUR"),
                 () -> assertThat(response.status()).isEqualTo("COMPLETED"),
                 () -> assertThat(response.reference()).isEqualTo("Test transfer"),
@@ -134,7 +135,7 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(transferJpa.getTenantId()).isEqualTo(tenantId),
                 () -> assertThat(transferJpa.getSourceWalletId()).isEqualTo(UUID.fromString(sourceWalletId)),
                 () -> assertThat(transferJpa.getDestinationWalletId()).isEqualTo(UUID.fromString(destinationWalletId)),
-                () -> assertThat(transferJpa.getAmount()).isEqualByComparingTo(new BigDecimal("250.00")),
+                () -> assertThat(transferJpa.getAmount()).isEqualByComparingTo(TWO_HUNDRED_FIFTY),
                 () -> assertThat(transferJpa.getCurrency()).isEqualTo("EUR"),
                 () -> assertThat(transferJpa.getStatus()).isEqualTo("COMPLETED")
         );
@@ -159,8 +160,8 @@ class TransferControllerIntegrationTest {
         // verify balances
         var sourceBalance = ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(sourceWalletId));
         var destinationBalance = ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(destinationWalletId));
-        assertThat(sourceBalance).isEqualByComparingTo(new BigDecimal("750.00"));
-        assertThat(destinationBalance).isEqualByComparingTo(new BigDecimal("250.00"));
+        assertThat(sourceBalance).isEqualByComparingTo(SEVEN_HUNDRED_FIFTY);
+        assertThat(destinationBalance).isEqualByComparingTo(TWO_HUNDRED_FIFTY);
     }
 
     @Test
@@ -174,7 +175,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("150.00"))
+                .amount(ONE_FIFTY)
                 .currency("EUR")
                 .reference("Async audit")
                 .build();
@@ -231,7 +232,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .reference("Idempotent transfer")
                 .build();
@@ -275,6 +276,125 @@ class TransferControllerIntegrationTest {
     }
 
     @Test
+    void shouldReturnExistingTransferWhenIdempotencyKeyIsReusedWithDifferentRequestBody() throws Exception {
+        // given
+        var tenantId = UUID.randomUUID();
+        var sourceWalletId = createWallet(tenantId, "EUR");
+        var firstDestinationWalletId = createWallet(tenantId, "EUR");
+        var secondDestinationWalletId = createWallet(tenantId, "EUR");
+        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+
+        var idempotencyKey = UUID.randomUUID().toString();
+        var firstRequest = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(firstDestinationWalletId))
+                .amount(ONE_HUNDRED)
+                .currency("EUR")
+                .reference("Original idempotent transfer")
+                .build();
+        var differentRequest = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(secondDestinationWalletId))
+                .amount(TWO_HUNDRED_FIFTY)
+                .currency("EUR")
+                .reference("Different idempotent transfer")
+                .build();
+
+        var firstResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(firstRequest)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        // when
+        var secondResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(differentRequest)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        // then
+        var firstResponse = objectMapper.readValue(firstResult.getResponse().getContentAsString(), TransferResponse.class);
+        var secondResponse = objectMapper.readValue(secondResult.getResponse().getContentAsString(), TransferResponse.class);
+
+        assertAll(
+                () -> assertThat(secondResponse.transferId()).isEqualTo(firstResponse.transferId()),
+                () -> assertThat(secondResponse.destinationWalletId()).isEqualTo(firstDestinationWalletId),
+                () -> assertThat(secondResponse.amount()).isEqualByComparingTo(ONE_HUNDRED),
+                () -> assertThat(secondResponse.reference()).isEqualTo("Original idempotent transfer"),
+                () -> assertThat(transferRepository.findAll()).hasSize(1),
+                () -> assertThat(ledgerEntryRepository.findAll()).hasSize(3),
+                () -> assertThat(outboxEventRepository.findAll()).hasSize(1)
+        );
+
+        assertThat(ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(sourceWalletId)))
+                .isEqualByComparingTo(NINE_HUNDRED);
+        assertThat(ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(firstDestinationWalletId)))
+                .isEqualByComparingTo(ONE_HUNDRED);
+        assertThat(ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(secondDestinationWalletId)))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void shouldAllowSameIdempotencyKeyForDifferentTenants() throws Exception {
+        // given
+        var firstTenantId = UUID.randomUUID();
+        var secondTenantId = UUID.randomUUID();
+        var sharedIdempotencyKey = UUID.randomUUID().toString();
+
+        var firstSourceWalletId = createWallet(firstTenantId, "EUR");
+        var firstDestinationWalletId = createWallet(firstTenantId, "EUR");
+        deposit(firstTenantId, firstSourceWalletId, "1000.00", "EUR");
+
+        var secondSourceWalletId = createWallet(secondTenantId, "EUR");
+        var secondDestinationWalletId = createWallet(secondTenantId, "EUR");
+        deposit(secondTenantId, secondSourceWalletId, "1000.00", "EUR");
+
+        var firstRequest = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(firstSourceWalletId))
+                .destinationWalletId(UUID.fromString(firstDestinationWalletId))
+                .amount(ONE_HUNDRED)
+                .currency("EUR")
+                .reference("First tenant transfer")
+                .build();
+        var secondRequest = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(secondSourceWalletId))
+                .destinationWalletId(UUID.fromString(secondDestinationWalletId))
+                .amount(ONE_HUNDRED)
+                .currency("EUR")
+                .reference("Second tenant transfer")
+                .build();
+
+        // when
+        var firstResult = mockMvc.perform(post(TRANSFERS_PATH, firstTenantId)
+                        .header(IDEMPOTENCY_KEY_HEADER, sharedIdempotencyKey)
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(firstRequest)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        var secondResult = mockMvc.perform(post(TRANSFERS_PATH, secondTenantId)
+                        .header(IDEMPOTENCY_KEY_HEADER, sharedIdempotencyKey)
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(secondRequest)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        // then
+        var firstResponse = objectMapper.readValue(firstResult.getResponse().getContentAsString(), TransferResponse.class);
+        var secondResponse = objectMapper.readValue(secondResult.getResponse().getContentAsString(), TransferResponse.class);
+
+        assertAll(
+                () -> assertThat(firstResponse.transferId()).isNotEqualTo(secondResponse.transferId()),
+                () -> assertThat(firstResponse.tenantId()).isEqualTo(firstTenantId.toString()),
+                () -> assertThat(secondResponse.tenantId()).isEqualTo(secondTenantId.toString()),
+                () -> assertThat(transferRepository.findAll()).hasSize(2),
+                () -> assertThat(outboxEventRepository.findAll()).hasSize(2)
+        );
+    }
+
+    @Test
     void shouldGetTransferById() throws Exception {
         var tenantId = UUID.randomUUID();
         var sourceWalletId = createWallet(tenantId, "EUR");
@@ -284,7 +404,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("120.00"))
+                .amount(ONE_TWENTY)
                 .currency("EUR")
                 .reference("Get transfer")
                 .build();
@@ -309,7 +429,7 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
                 () -> assertThat(response.sourceWalletId()).isEqualTo(sourceWalletId),
                 () -> assertThat(response.destinationWalletId()).isEqualTo(destinationWalletId),
-                () -> assertThat(response.amount()).isEqualByComparingTo(new BigDecimal("120.00")),
+                () -> assertThat(response.amount()).isEqualByComparingTo(ONE_TWENTY),
                 () -> assertThat(response.currency()).isEqualTo(EUR),
                 () -> assertThat(response.status()).isEqualTo(COMPLETED),
                 () -> assertThat(response.reference()).isEqualTo("Get transfer")
@@ -342,7 +462,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(walletId))
                 .destinationWalletId(UUID.fromString(walletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .build();
 
@@ -374,7 +494,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .build();
 
@@ -408,7 +528,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .reference("Metrics success")
                 .build();
@@ -438,7 +558,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .reference("Metrics failure")
                 .build();
@@ -464,7 +584,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.randomUUID())
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .build();
 
@@ -495,7 +615,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.randomUUID())
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .build();
 
@@ -527,7 +647,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("USD")
                 .build();
 
@@ -559,7 +679,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .build();
 
@@ -587,7 +707,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.randomUUID())
                 .destinationWalletId(UUID.randomUUID())
-                .amount(new BigDecimal("0.00"))
+                .amount(ZERO)
                 .currency("EUR")
                 .build();
 
@@ -619,7 +739,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("300.00"))
+                .amount(THREE_HUNDRED)
                 .currency("PLN")
                 .reference("Full transfer")
                 .build();
@@ -635,7 +755,7 @@ class TransferControllerIntegrationTest {
         var sourceBalance = ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(sourceWalletId));
         var destinationBalance = ledgerEntryRepository.calculateBalance(tenantId, UUID.fromString(destinationWalletId));
         assertThat(sourceBalance).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(destinationBalance).isEqualByComparingTo(new BigDecimal("300.00"));
+        assertThat(destinationBalance).isEqualByComparingTo(THREE_HUNDRED);
     }
 
     @Test
@@ -650,7 +770,7 @@ class TransferControllerIntegrationTest {
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
+                .amount(ONE_HUNDRED)
                 .currency("EUR")
                 .build();
 

@@ -1,0 +1,37 @@
+@startuml SafeTransfer System Context
+title SafeTransfer - System Context
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+
+actor "API Client\n(Postman / UI / Partner)" as Client
+
+rectangle "SafeTransfer\nSpring Boot Application" as App {
+  rectangle "REST API" as RestApi
+  rectangle "Wallet, Transfer,\nLedger, Outbox, Audit" as Modules
+}
+
+database "PostgreSQL" as Postgres
+queue "Kafka" as Kafka
+rectangle "Metrics Backend\n(Prometheus compatible)" as Metrics
+
+Client --> RestApi : HTTP JSON\nwallets, deposits, transfers
+RestApi --> Modules : application use cases
+Modules --> Postgres : transactional state\nwallet, ledger, transfer,\noutbox, audit
+Modules --> Kafka : transfer.completed events\nwhen Kafka publishing enabled
+Kafka --> Modules : audit listener consumes events
+Metrics <-- App : actuator metrics\n/prometheus
+
+note right of App
+  Modular monolith.
+  Domain modules are separated in code,
+  but deployed as one process.
+end note
+
+note bottom of Postgres
+  PostgreSQL is the source of truth.
+  Ledger entries are immutable.
+end note
+
+@enduml

@@ -1,0 +1,49 @@
+@startuml SafeTransfer Use Cases
+title SafeTransfer - Main Use Cases
+
+left to right direction
+skinparam shadowing false
+
+actor "API Client" as Client
+actor "Operations / Monitoring" as Ops
+actor "Kafka Consumer\n(Audit Listener)" as KafkaConsumer
+
+rectangle "SafeTransfer" {
+  usecase "Create Wallet" as UC_CreateWallet
+  usecase "Get Wallet" as UC_GetWallet
+  usecase "Get Balance" as UC_GetBalance
+  usecase "Deposit Money" as UC_Deposit
+  usecase "Create Transfer" as UC_Transfer
+  usecase "Get Transfer" as UC_GetTransfer
+  usecase "Retry Outbox Publishing" as UC_Outbox
+  usecase "Publish Transfer Event" as UC_Publish
+  usecase "Record Audit Event" as UC_Audit
+  usecase "Expose Metrics" as UC_Metrics
+}
+
+Client --> UC_CreateWallet
+Client --> UC_GetWallet
+Client --> UC_GetBalance
+Client --> UC_Deposit
+Client --> UC_Transfer
+Client --> UC_GetTransfer
+
+UC_Transfer .> UC_GetBalance : validates funds
+UC_Transfer .> UC_Publish : creates outbox event
+UC_Outbox .> UC_Publish : dispatches event
+UC_Publish .> UC_Audit : consumed asynchronously
+
+KafkaConsumer --> UC_Audit
+Ops --> UC_Metrics
+Ops --> UC_Outbox
+
+note bottom of UC_Transfer
+  Transfer is idempotent by tenant + idempotency key.
+  Reusing the same key returns the existing transfer.
+end note
+
+note bottom of UC_GetBalance
+  Balance is calculated from ledger entries.
+end note
+
+@enduml

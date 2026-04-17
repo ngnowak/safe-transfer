@@ -139,6 +139,8 @@ public class TransferService {
 
 
         } catch (DataIntegrityViolationException ex) {
+            log.warn("Transfer for tenantId={} and idempotencyKey={} already exists:", tenantId, idempotencyKey);
+
             return transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
                     .<Result<TransferError, Transfer>>map(Result::success)
                     .orElseThrow(() -> ex);

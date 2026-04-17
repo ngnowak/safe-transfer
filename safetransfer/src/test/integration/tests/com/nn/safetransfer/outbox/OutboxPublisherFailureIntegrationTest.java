@@ -28,6 +28,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.nn.safetransfer.TestAmounts.*;
+import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -126,15 +128,15 @@ class OutboxPublisherFailureIntegrationTest {
 
     private void createTransferProducingOutboxEvent() throws Exception {
         var tenantId = UUID.randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, "1000.00", "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
-                .amount(new BigDecimal("100.00"))
-                .currency("EUR")
+                .amount(ONE_HUNDRED)
+                .currency(EUR.name())
                 .reference("Failing async audit")
                 .build();
 
@@ -160,11 +162,11 @@ class OutboxPublisherFailureIntegrationTest {
                 result.getResponse().getContentAsString(), WalletResponse.class).walletId();
     }
 
-    private void deposit(UUID tenantId, String walletId, String amount, String currency) throws Exception {
+    private void deposit(UUID tenantId, String walletId, BigDecimal amount, String currency) throws Exception {
         mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new DepositRequest(new BigDecimal(amount), currency, "Setup deposit")
+                                new DepositRequest(amount, currency, "Setup deposit")
                         )))
                 .andExpect(status().isOk());
     }

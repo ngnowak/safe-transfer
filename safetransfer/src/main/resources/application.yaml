@@ -30,6 +30,12 @@ springdoc:
 server:
   port: 8080
 
+application:
+  kafka:
+    publishing: false
+    topics:
+      transfer-completed: wallet.transfer.completed
+
 management:
   endpoints:
     web:
@@ -42,6 +48,13 @@ management:
     metrics:
       export:
         enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.nn.safetransfer: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 safetransfer:
   outbox:

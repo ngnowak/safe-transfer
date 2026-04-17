@@ -1,0 +1,95 @@
+@startuml SafeTransfer Component View
+title SafeTransfer - Component View
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+
+package "API Layer" {
+  [WalletController] as WalletController
+  [TransferController] as TransferController
+  [GlobalExceptionHandler] as GlobalExceptionHandler
+}
+
+package "Wallet Module" {
+  [WalletApplicationService] as WalletService
+  [DepositService] as DepositService
+  [QueryWalletUseCase] as QueryWallet
+  [QueryBalanceUseCase] as QueryBalance
+  [WalletRepository] as WalletRepository
+}
+
+package "Transfer Module" {
+  [TransferService] as TransferService
+  [QueryTransferUseCase] as QueryTransfer
+  [TransferRepository] as TransferRepository
+}
+
+package "Ledger Module" {
+  [LedgerEntryRepository] as LedgerRepository
+}
+
+package "Outbox Module" {
+  [OutboxEventFactory] as OutboxFactory
+  [OutboxPublisherJob] as PublisherJob
+  [OutboxPublisherImpl] as Publisher
+  [OutboxEventDispatcher] as Dispatcher
+  [InProcessOutboxEventDispatcher] as InProcessDispatcher
+  [KafkaOutboxEventDispatcher] as KafkaDispatcher
+  [OutboxEventRepository] as OutboxRepository
+}
+
+package "Audit Module" {
+  [AuditKafkaListener] as AuditKafkaListener
+  [AuditConsumerImpl] as AuditConsumer
+  [AuditEventFactory] as AuditFactory
+  [AuditEventRepository] as AuditRepository
+}
+
+database "PostgreSQL" as Db
+queue "Kafka" as Kafka
+
+WalletController --> WalletService : create wallet
+WalletController --> QueryWallet : get wallet
+WalletController --> QueryBalance : get balance
+WalletController --> DepositService : deposit
+
+TransferController --> TransferService : create transfer
+TransferController --> QueryTransfer : get transfer
+
+TransferService --> WalletRepository : lock wallets
+TransferService --> LedgerRepository : calculate balance\nsave debit/credit
+TransferService --> TransferRepository : save transfer
+TransferService --> OutboxFactory : create event
+TransferService --> OutboxRepository : save outbox event
+
+QueryBalance --> LedgerRepository : calculate balance
+DepositService --> LedgerRepository : save credit
+
+PublisherJob --> Publisher : scheduled publish
+Publisher --> OutboxRepository : claim retryable events
+Publisher --> Dispatcher : dispatch event
+Dispatcher <|.. InProcessDispatcher
+Dispatcher <|.. KafkaDispatcher
+InProcessDispatcher --> AuditConsumer : direct in-process call
+KafkaDispatcher --> Kafka : publish event
+Kafka --> AuditKafkaListener : consume event
+AuditKafkaListener --> AuditConsumer : delegate
+AuditConsumer --> AuditFactory : map event
+AuditConsumer --> AuditRepository : save audit event
+
+WalletRepository --> Db
+TransferRepository --> Db
+LedgerRepository --> Db
+OutboxRepository --> Db
+AuditRepository --> Db
+
+GlobalExceptionHandler ..> WalletController
+GlobalExceptionHandler ..> TransferController
+
+note right of Dispatcher
+  Implementation depends on:
+  application.kafka.publishing
+end note
+
+@enduml

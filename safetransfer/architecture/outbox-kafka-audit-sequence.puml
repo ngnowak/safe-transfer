@@ -1,0 +1,65 @@
+@startuml SafeTransfer Outbox Kafka Audit Sequence
+title SafeTransfer - Outbox, Kafka, Audit Flow
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+participant OutboxPublisherJob
+participant OutboxPublisherImpl as Publisher
+participant OutboxEventRepository as OutboxRepository
+participant KafkaOutboxEventDispatcher as KafkaDispatcher
+queue Kafka
+participant AuditKafkaListener
+participant AuditConsumerImpl as AuditConsumer
+participant AuditEventFactory
+participant AuditEventRepository as AuditRepository
+database PostgreSQL
+
+OutboxPublisherJob -> Publisher : publishPending(batchSize)
+Publisher -> OutboxRepository : claimTopRetryableOrderByOccurredAtAsc(...)
+OutboxRepository -> PostgreSQL : select NEW/FAILED events\nFOR UPDATE SKIP LOCKED
+PostgreSQL --> OutboxRepository : claimed events
+OutboxRepository --> Publisher : events
+
+loop each outbox event
+  Publisher -> KafkaDispatcher : dispatch(outboxEvent)
+  KafkaDispatcher -> Kafka : send(topic, aggregateId, serialized event)
+
+  alt Kafka publish succeeds
+    KafkaDispatcher --> Publisher : ok
+    Publisher -> OutboxRepository : save status PUBLISHED\npublishedAt now
+    OutboxRepository -> PostgreSQL : update outbox_event
+  else Kafka publish fails
+    KafkaDispatcher --> Publisher : OutboxProcessingException
+    Publisher -> OutboxRepository : save status FAILED or FATAL\nincrement retryCount
+    OutboxRepository -> PostgreSQL : update outbox_event
+  end
+end
+
+Kafka -> AuditKafkaListener : message from wallet.transfer.completed
+AuditKafkaListener -> AuditConsumer : consume(outboxEvent)
+
+alt event type supported
+  AuditConsumer -> AuditEventFactory : from(outboxEvent)
+  AuditEventFactory --> AuditConsumer : audit event
+  AuditConsumer -> AuditRepository : save(auditEvent)
+  AuditRepository -> PostgreSQL : insert audit_event
+else duplicate audit event
+  AuditRepository --> AuditConsumer : unique constraint violation
+  AuditConsumer --> AuditKafkaListener : ignore duplicate
+else unsupported event type
+  AuditConsumer --> AuditKafkaListener : ignored
+end
+
+note right of Publisher
+  Retry states:
+  NEW -> FAILED -> FAILED -> FATAL
+  or NEW -> PUBLISHED
+end note
+
+note bottom of AuditConsumer
+  Audit consumer is idempotent.
+  Duplicate Kafka delivery should not create duplicate audit rows.
+end note
+
+@enduml

@@ -1,0 +1,747 @@
+{
+  "info": {
+    "name": "SafeTransfer REST API",
+    "description": "Examples for SafeTransfer wallet, deposit, transfer, metrics, and health endpoints. The collection stores IDs from successful responses into collection variables for later requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "tenantId",
+      "value": "{{$guid}}"
+    },
+    {
+      "key": "sourceCustomerId",
+      "value": "{{$guid}}"
+    },
+    {
+      "key": "destinationCustomerId",
+      "value": "{{$guid}}"
+    },
+    {
+      "key": "sourceWalletId",
+      "value": ""
+    },
+    {
+      "key": "destinationWalletId",
+      "value": ""
+    },
+    {
+      "key": "transferId",
+      "value": ""
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "{{$guid}}"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Get Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Wallets",
+      "item": [
+        {
+          "name": "Create Source Wallet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('sourceWalletId', body.walletId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{sourceCustomerId}}\",\n  \"currency\": \"EUR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Destination Wallet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('destinationWalletId', body.walletId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{destinationCustomerId}}\",\n  \"currency\": \"EUR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Source Wallet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets/{{sourceWalletId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets",
+                "{{sourceWalletId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Duplicate Wallet - Bad Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{sourceCustomerId}}\",\n  \"currency\": \"EUR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Wallet With Invalid Currency - Bad Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{$guid}}\",\n  \"currency\": \"INVALID\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deposits And Balances",
+      "item": [
+        {
+          "name": "Deposit To Source Wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100.00,\n  \"currency\": \"EUR\",\n  \"reference\": \"Postman setup deposit\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets/{{sourceWalletId}}/deposits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets",
+                "{{sourceWalletId}}",
+                "deposits"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Source Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets/{{sourceWalletId}}/balance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets",
+                "{{sourceWalletId}}",
+                "balance"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Destination Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets/{{destinationWalletId}}/balance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets",
+                "{{destinationWalletId}}",
+                "balance"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deposit Currency Mismatch - Bad Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 25.00,\n  \"currency\": \"USD\",\n  \"reference\": \"Currency mismatch\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets/{{sourceWalletId}}/deposits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets",
+                "{{sourceWalletId}}",
+                "deposits"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deposit Zero Amount - Bad Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 0.00,\n  \"currency\": \"EUR\",\n  \"reference\": \"Invalid zero deposit\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/wallets/{{sourceWalletId}}/deposits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "wallets",
+                "{{sourceWalletId}}",
+                "deposits"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfers",
+      "item": [
+        {
+          "name": "Create Transfer",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('transferId', body.transferId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{sourceWalletId}}\",\n  \"destinationWalletId\": \"{{destinationWalletId}}\",\n  \"amount\": 25.00,\n  \"currency\": \"EUR\",\n  \"reference\": \"Postman transfer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "transfers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Repeat Transfer With Same Idempotency Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{sourceWalletId}}\",\n  \"destinationWalletId\": \"{{destinationWalletId}}\",\n  \"amount\": 25.00,\n  \"currency\": \"EUR\",\n  \"reference\": \"Postman transfer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "transfers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Transfer By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/transfers/{{transferId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "transfers",
+                "{{transferId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Transfer Insufficient Funds - Conflict",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{sourceWalletId}}\",\n  \"destinationWalletId\": \"{{destinationWalletId}}\",\n  \"amount\": 1000000.00,\n  \"currency\": \"EUR\",\n  \"reference\": \"Expected insufficient funds\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "transfers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Transfer Same Wallet - Bad Request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{sourceWalletId}}\",\n  \"destinationWalletId\": \"{{sourceWalletId}}\",\n  \"amount\": 25.00,\n  \"currency\": \"EUR\",\n  \"reference\": \"Expected same-wallet rejection\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "transfers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Transfer Zero Amount - Bad Request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceWalletId\": \"{{sourceWalletId}}\",\n  \"destinationWalletId\": \"{{destinationWalletId}}\",\n  \"amount\": 0.00,\n  \"currency\": \"EUR\",\n  \"reference\": \"Invalid zero transfer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tenants/{{tenantId}}/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "{{tenantId}}",
+                "transfers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "Transfer Created Success Counter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/metrics/safetransfer.transfer.created?tag=outcome:success",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "metrics",
+                "safetransfer.transfer.created"
+              ],
+              "query": [
+                {
+                  "key": "tag",
+                  "value": "outcome:success"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/plain"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/prometheus",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "prometheus"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

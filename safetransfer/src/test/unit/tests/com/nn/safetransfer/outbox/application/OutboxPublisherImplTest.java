@@ -1,6 +1,5 @@
 package com.nn.safetransfer.outbox.application;
 
-import com.nn.safetransfer.audit.application.AuditConsumer;
 import com.nn.safetransfer.common.metrics.TransferMetrics;
 import com.nn.safetransfer.outbox.domain.EventType;
 import com.nn.safetransfer.outbox.domain.OutboxAggregateType;
@@ -37,7 +36,7 @@ class OutboxPublisherImplTest {
     private OutboxEventRepository outboxEventRepository;
 
     @Mock
-    private AuditConsumer auditConsumer;
+    private OutboxEventDispatcher outboxEventDispatcher;
 
     @Mock
     private TransferMetrics transferMetrics;
@@ -47,7 +46,7 @@ class OutboxPublisherImplTest {
     @Test
     void shouldPublishPendingOutboxEvents() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties, transferMetrics);
+        var publisher = new OutboxPublisherImpl(outboxEventRepository, outboxEventDispatcher, properties, transferMetrics);
         var event = buildOutboxEvent();
         given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
                 .willReturn(List.of(event));
@@ -59,7 +58,7 @@ class OutboxPublisherImplTest {
 
         // then
         var captor = ArgumentCaptor.forClass(OutboxEvent.class);
-        verify(auditConsumer).consume(event);
+        verify(outboxEventDispatcher).dispatch(event);
         assertAll(
                 () -> assertThat(published).isEqualTo(1),
                 () -> verify(outboxEventRepository).save(captor.capture()),
@@ -72,7 +71,7 @@ class OutboxPublisherImplTest {
     @Test
     void shouldDoNothingWhenThereAreNoPendingEvents() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties, transferMetrics);
+        var publisher = new OutboxPublisherImpl(outboxEventRepository, outboxEventDispatcher, properties, transferMetrics);
         given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
                 .willReturn(List.of());
 
@@ -81,19 +80,19 @@ class OutboxPublisherImplTest {
 
         // then
         assertThat(published).isZero();
-        verify(auditConsumer, never()).consume(any());
+        verify(outboxEventDispatcher, never()).dispatch(any());
     }
 
     @Test
     void shouldMarkEventAsFailedAndIncreaseRetryCountWhenConsumerThrows() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties, transferMetrics);
+        var publisher = new OutboxPublisherImpl(outboxEventRepository, outboxEventDispatcher, properties, transferMetrics);
         var event = buildOutboxEvent();
         given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
                 .willReturn(List.of(event));
         given(outboxEventRepository.save(any(OutboxEvent.class)))
                 .willAnswer(inv -> inv.getArgument(0));
-        doThrow(new OutboxProcessingException("boom", new IllegalStateException("boom"))).when(auditConsumer).consume(event);
+        doThrow(new OutboxProcessingException("boom", new IllegalStateException("boom"))).when(outboxEventDispatcher).dispatch(event);
 
         // when
         var published = publisher.publishPending(10);
@@ -113,13 +112,13 @@ class OutboxPublisherImplTest {
     @Test
     void shouldMarkEventAsFatalWhenMaxRetriesReached() throws Exception {
         // given
-        var publisher = new OutboxPublisherImpl(outboxEventRepository, auditConsumer, properties, transferMetrics);
+        var publisher = new OutboxPublisherImpl(outboxEventRepository, outboxEventDispatcher, properties, transferMetrics);
         var event = buildOutboxEvent().withRetryCount(2).withStatus(OutboxStatus.FAILED);
         given(outboxEventRepository.claimTopRetryableOrderByOccurredAtAsc(10, 3))
                 .willReturn(List.of(event));
         given(outboxEventRepository.save(any(OutboxEvent.class)))
                 .willAnswer(inv -> inv.getArgument(0));
-        doThrow(new OutboxProcessingException("boom", new IllegalStateException("boom"))).when(auditConsumer).consume(event);
+        doThrow(new OutboxProcessingException("boom", new IllegalStateException("boom"))).when(outboxEventDispatcher).dispatch(event);
 
         // when
         var published = publisher.publishPending(10);

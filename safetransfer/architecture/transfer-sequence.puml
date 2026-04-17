@@ -1,0 +1,60 @@
+@startuml SafeTransfer Transfer Sequence
+title SafeTransfer - Transfer Flow
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+actor Client
+participant TransferController
+participant TransferService
+participant WalletRepository
+participant LedgerEntryRepository as LedgerRepository
+participant TransferRepository
+participant OutboxEventFactory
+participant OutboxEventRepository as OutboxRepository
+database PostgreSQL
+
+Client -> TransferController : POST /api/v1/tenants/{tenantId}/transfers\nIdempotency-Key
+TransferController -> TransferService : transfer(tenantId, idempotencyKey, request)
+
+TransferService -> TransferRepository : findByTenantIdAndIdempotencyKey(...)
+alt existing idempotency key
+  TransferRepository --> TransferService : existing transfer
+  TransferService --> TransferController : existing transfer result
+else new transfer
+  TransferService -> WalletRepository : lock source and destination wallets\nin deterministic order
+  WalletRepository --> TransferService : wallets
+
+  TransferService -> LedgerRepository : calculateBalance(sourceWallet)
+  LedgerRepository --> TransferService : available balance
+
+  alt insufficient funds
+    TransferService --> TransferController : failure
+    TransferController --> Client : 409 Conflict
+  else enough funds
+    TransferService -> TransferRepository : save completed transfer
+    TransferRepository -> PostgreSQL : insert transfer
+
+    TransferService -> LedgerRepository : save debit entry
+    LedgerRepository -> PostgreSQL : insert ledger debit
+
+    TransferService -> LedgerRepository : save credit entry
+    LedgerRepository -> PostgreSQL : insert ledger credit
+
+    TransferService -> OutboxEventFactory : from TransferCompletedDomainEvent
+    OutboxEventFactory --> TransferService : outbox event
+
+    TransferService -> OutboxRepository : save outbox event NEW
+    OutboxRepository -> PostgreSQL : insert outbox_event
+
+    TransferService --> TransferController : success
+    TransferController --> Client : 201 Created\nTransferResponse
+  end
+end
+
+note over TransferService,PostgreSQL
+  Transfer, ledger entries, and outbox event
+  are written in one database transaction.
+end note
+
+@enduml

@@ -1,0 +1,34 @@
+@startuml SafeTransfer Local Deployment
+title SafeTransfer - Local Deployment
+
+skinparam shadowing false
+skinparam nodeStyle rectangle
+
+node "Developer Machine" as DevMachine {
+  artifact "Postman / curl" as Client
+  node "Spring Boot JVM\nSafeTransfer" as App
+}
+
+node "Docker" as Docker {
+  database "safe-transfer-postgres\nPostgreSQL" as Postgres
+  queue "safe-transfer-kafka\nKafka" as Kafka
+  artifact "kcat container\noptional local proof" as Kcat
+}
+
+Client --> App : HTTP localhost:8080
+App --> Postgres : JDBC localhost:5432
+App --> Kafka : Kafka localhost:9092\nlocal profile
+Kcat --> Kafka : safe-transfer-kafka:29092\nDocker network
+
+note right of App
+  Run with:
+  SPRING_PROFILES_ACTIVE=local
+end note
+
+note right of Kafka
+  Local compose exposes:
+  localhost:9092 for host app
+  safe-transfer-kafka:29092 for Docker clients
+end note
+
+@enduml

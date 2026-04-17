@@ -1,6 +1,5 @@
 package com.nn.safetransfer.outbox.application;
 
-import com.nn.safetransfer.audit.application.AuditConsumer;
 import com.nn.safetransfer.common.metrics.TransferMetrics;
 import com.nn.safetransfer.outbox.domain.OutboxEvent;
 import com.nn.safetransfer.outbox.domain.OutboxEventRepository;
@@ -21,7 +20,7 @@ import static com.nn.safetransfer.outbox.domain.OutboxStatus.PUBLISHED;
 public class OutboxPublisherImpl implements OutboxPublisher {
 
     private final OutboxEventRepository outboxEventRepository;
-    private final AuditConsumer auditConsumer;
+    private final OutboxEventDispatcher outboxEventDispatcher;
     private final OutboxPublisherProperties properties;
     private final TransferMetrics transferMetrics;
 
@@ -34,7 +33,7 @@ public class OutboxPublisherImpl implements OutboxPublisher {
         for (var outboxEvent : pendingEvents) {
             var start = System.nanoTime();
             try {
-                auditConsumer.consume(outboxEvent);
+                outboxEventDispatcher.dispatch(outboxEvent);
                 var publishedEvent = outboxEvent
                         .withStatus(PUBLISHED)
                         .withPublishedAt(Instant.now());

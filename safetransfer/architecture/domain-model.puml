@@ -1,0 +1,113 @@
+@startuml SafeTransfer Domain Model
+title SafeTransfer - Domain Model
+
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+class Tenant {
+  UUID tenantId
+}
+
+class Customer {
+  UUID customerId
+}
+
+class Wallet {
+  WalletId id
+  TenantId tenantId
+  CustomerId customerId
+  CurrencyCode currency
+  WalletStatus status
+}
+
+class LedgerEntry {
+  LedgerEntryId id
+  TenantId tenantId
+  WalletId walletId
+  BigDecimal amount
+  CurrencyCode currency
+  LedgerEntryType type
+  String reference
+  Instant createdAt
+}
+
+class Transfer {
+  TransferId id
+  TenantId tenantId
+  WalletId sourceWalletId
+  WalletId destinationWalletId
+  BigDecimal amount
+  CurrencyCode currency
+  TransferStatus status
+  String idempotencyKey
+  String reference
+  Instant createdAt
+}
+
+class OutboxEvent {
+  UUID id
+  UUID tenantId
+  OutboxAggregateType aggregateType
+  UUID aggregateId
+  EventType eventType
+  String payload
+  OutboxStatus status
+  int retryCount
+  Instant occurredAt
+  Instant publishedAt
+}
+
+class AuditEvent {
+  UUID id
+  UUID sourceEventId
+  UUID tenantId
+  String aggregateType
+  UUID aggregateId
+  String eventType
+  String payload
+  Instant recordedAt
+}
+
+enum LedgerEntryType {
+  DEBIT
+  CREDIT
+}
+
+enum TransferStatus {
+  COMPLETED
+}
+
+enum OutboxStatus {
+  NEW
+  PUBLISHED
+  FAILED
+  FATAL
+}
+
+Tenant "1" o-- "*" Wallet
+Customer "1" o-- "*" Wallet
+Wallet "1" o-- "*" LedgerEntry
+Wallet "1" <-- "*" Transfer : source
+Wallet "1" <-- "*" Transfer : destination
+Transfer "1" --> "1" OutboxEvent : emits
+OutboxEvent "1" --> "0..1" AuditEvent : audited as
+LedgerEntry --> LedgerEntryType
+Transfer --> TransferStatus
+OutboxEvent --> OutboxStatus
+
+note bottom of Wallet
+  Wallet does not store balance.
+  Balance is derived from ledger entries.
+end note
+
+note bottom of LedgerEntry
+  Ledger entries are immutable money movements.
+  CREDIT increases balance.
+  DEBIT decreases balance.
+end note
+
+note bottom of Transfer
+  Idempotency key is scoped by tenant.
+end note
+
+@enduml

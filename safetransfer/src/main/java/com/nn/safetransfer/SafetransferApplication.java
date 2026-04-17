@@ -1,13 +1,16 @@
 package com.nn.safetransfer;
 
 import com.nn.safetransfer.outbox.application.OutboxPublisherProperties;
+import com.nn.safetransfer.outbox.application.ApplicationKafkaProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+@EnableKafka
 @EnableScheduling
-@EnableConfigurationProperties(OutboxPublisherProperties.class)
+@EnableConfigurationProperties({OutboxPublisherProperties.class, ApplicationKafkaProperties.class})
 @SpringBootApplication
 public class SafetransferApplication {
 
