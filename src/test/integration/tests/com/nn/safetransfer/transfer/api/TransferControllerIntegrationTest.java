@@ -41,16 +41,21 @@ import static com.nn.safetransfer.TestAmounts.TWENTY_THOUSAND;
 import static com.nn.safetransfer.TestAmounts.TWO_HUNDRED_FIFTY;
 import static com.nn.safetransfer.TestAmounts.ZERO;
 import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY_BLANK_MESSAGE;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY_MAX_LENGTH;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY_TOO_LONG_MESSAGE;
 import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
 import static com.nn.safetransfer.outbox.domain.OutboxAggregateType.TRANSFER;
 import static com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.PLN;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.USD;
+import static com.nn.safetransfer.wallet.domain.WalletStatus.BLOCKED;
 import static java.util.UUID.randomUUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.http.MediaType.TEXT_PLAIN;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -351,6 +356,96 @@ class TransferControllerIntegrationTest {
     }
 
     @Test
+    void shouldReturnBadRequestWhenIdempotencyKeyIsMissing() throws Exception {
+        // given
+        var tenantId = randomUUID();
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(ONE_HUNDRED)
+                .currency(EUR.name())
+                .build();
+
+        // when
+        var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isEqualTo("Required request header 'Idempotency-Key' is not present"),
+                () -> assertThat(error.errors()).isNull()
+        );
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenIdempotencyKeyIsBlank() throws Exception {
+        // given
+        var tenantId = randomUUID();
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(ONE_HUNDRED)
+                .currency(EUR.name())
+                .build();
+
+        // when
+        var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header(IDEMPOTENCY_KEY, " ")
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isEqualTo(IDEMPOTENCY_KEY_BLANK_MESSAGE),
+                () -> assertThat(error.errors()).isNull()
+        );
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenIdempotencyKeyIsTooLong() throws Exception {
+        // given
+        var tenantId = randomUUID();
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(ONE_HUNDRED)
+                .currency(EUR.name())
+                .build();
+
+        // when
+        var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header(IDEMPOTENCY_KEY, "a".repeat(IDEMPOTENCY_KEY_MAX_LENGTH + 1))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isEqualTo(IDEMPOTENCY_KEY_TOO_LONG_MESSAGE),
+                () -> assertThat(error.errors()).isNull(),
+                () -> assertThat(transferRepository.findAll()).isEmpty()
+        );
+    }
+
+    @Test
     void shouldAllowSameIdempotencyKeyForDifferentTenants() throws Exception {
         // given
         var firstTenantId = randomUUID();
@@ -562,6 +657,46 @@ class TransferControllerIntegrationTest {
                 .formatted(TEN_THOUSAND_01);
         assertAll(
                 () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
+                () -> assertThat(transferRepository.findAll()).isEmpty(),
+                () -> assertThat(outboxEventRepository.findAll()).isEmpty(),
+                () -> assertThat(ledgerEntryRepository.findAll()).hasSize(1)
+        );
+    }
+
+    @Test
+    void shouldReturnConflictWhenDestinationWalletIsNotActive() throws Exception {
+        // given
+        var tenantId = randomUUID();
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, EUR.name());
+
+        var destinationWallet = walletRepository.findById(UUID.fromString(destinationWalletId)).orElseThrow();
+        destinationWallet.setStatus(BLOCKED.name());
+        walletRepository.save(destinationWallet);
+
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(ONE_HUNDRED)
+                .currency(EUR.name())
+                .reference("Destination blocked")
+                .build();
+
+        // when
+        var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isEqualTo("Destination wallet must be ACTIVE"),
+                () -> assertThat(error.errors()).isNull(),
                 () -> assertThat(transferRepository.findAll()).isEmpty(),
                 () -> assertThat(outboxEventRepository.findAll()).isEmpty(),
                 () -> assertThat(ledgerEntryRepository.findAll()).hasSize(1)
@@ -790,6 +925,71 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(error.errorId()).isNotNull(),
                 () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).contains("amount: must be greater than or equal to 0.01")
+        );
+    }
+
+    @Test
+    void shouldReturnValidationErrorWhenAmountHasMoreThanTwoFractionDigits() throws Exception {
+        // given
+        var tenantId = randomUUID();
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(randomUUID())
+                .destinationWalletId(randomUUID())
+                .amount(new BigDecimal("10.001"))
+                .currency(EUR.name())
+                .build();
+
+        // when
+        var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errors()).contains("amount: numeric value out of bounds (<15 digits>.<2 digits> expected)")
+        );
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenTransferRequestBodyIsMalformedJson() throws Exception {
+        // when
+        var result = mockMvc.perform(post(TRANSFERS_PATH, randomUUID())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isEqualTo("Malformed JSON request body"),
+                () -> assertThat(error.errors()).isNull()
+        );
+    }
+
+    @Test
+    void shouldReturnUnsupportedMediaTypeWhenTransferContentTypeIsNotJson() throws Exception {
+        // when
+        var result = mockMvc.perform(post(TRANSFERS_PATH, randomUUID())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
+                        .contentType(TEXT_PLAIN)
+                        .content("not-json"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorId()).isNotNull(),
+                () -> assertThat(error.errorMessage()).isEqualTo("Unsupported content type 'text/plain'"),
+                () -> assertThat(error.errors()).isNull()
         );
     }
 

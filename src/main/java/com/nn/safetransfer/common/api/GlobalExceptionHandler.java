@@ -5,6 +5,9 @@ import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
 import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,6 +23,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.http.HttpStatus.UNSUPPORTED_MEDIA_TYPE;
 
 @Slf4j
 @RestControllerAdvice
@@ -30,6 +34,28 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorDto> handleResponseStatusException(ResponseStatusException statusException) {
         log.warn("The result was error: {}", statusException.getMessage(), statusException);
         return new ResponseEntity<>(buildErrorDto(statusException.getReason()), statusException.getStatusCode());
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorDto> handleMissingRequestHeader(MissingRequestHeaderException ex) {
+        var errorMsg = "Required request header '%s' is not present".formatted(ex.getHeaderName());
+        log.warn(errorMsg, ex);
+        return new ResponseEntity<>(buildErrorDto(errorMsg), BAD_REQUEST);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorDto> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        var errorMsg = "Malformed JSON request body";
+        log.warn(errorMsg, ex);
+        return new ResponseEntity<>(buildErrorDto(errorMsg), BAD_REQUEST);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorDto> handleHttpMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        var contentType = ex.getContentType() == null ? "unknown" : ex.getContentType().toString();
+        var errorMsg = "Unsupported content type '%s'".formatted(contentType);
+        log.warn(errorMsg, ex);
+        return new ResponseEntity<>(buildErrorDto(errorMsg), UNSUPPORTED_MEDIA_TYPE);
     }
 
     @ExceptionHandler(WalletNotFoundException.class)

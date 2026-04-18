@@ -12,14 +12,20 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
 import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY_BLANK_MESSAGE;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY_MAX_LENGTH;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY_TOO_LONG_MESSAGE;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -36,6 +42,7 @@ public class TransferController implements TransferApi {
             @RequestHeader(IDEMPOTENCY_KEY) String idempotencyKey,
             @Valid @RequestBody CreateTransferRequest request
     ) {
+        validateIdempotencyKey(idempotencyKey);
         log.debug("Transfer request: tenantId={}, idempotencyKey={}, source={}, destination={}", tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId());
         var result = transferService.transfer(new TenantId(tenantId), idempotencyKey, request);
 
@@ -54,5 +61,14 @@ public class TransferController implements TransferApi {
                 .build();
         var result = queryTransferUseCase.handle(query);
         return transferResultMapper.toTransferResponse(result);
+    }
+
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            throw new ResponseStatusException(BAD_REQUEST, IDEMPOTENCY_KEY_BLANK_MESSAGE);
+        }
+        if (idempotencyKey.length() > IDEMPOTENCY_KEY_MAX_LENGTH) {
+            throw new ResponseStatusException(BAD_REQUEST, IDEMPOTENCY_KEY_TOO_LONG_MESSAGE);
+        }
     }
 }

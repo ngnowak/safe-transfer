@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.net.URLEncoder;
+import java.time.Duration;
 import java.util.UUID;
 
 import static com.nn.safetransfer.TestAmounts.ONE_HUNDRED;
@@ -25,10 +26,12 @@ import static com.nn.safetransfer.TestAmounts.ONE_THOUSAND;
 import static com.nn.safetransfer.TestAmounts.SEVENTY_FIVE;
 import static com.nn.safetransfer.TestAmounts.TWENTY_FIVE;
 import static com.nn.safetransfer.TestAmounts.ZERO;
+import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
 import static com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.UUID.randomUUID;
+import static org.awaitility.Awaitility.await;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TransferFlowE2eTest {
@@ -98,6 +101,32 @@ class TransferFlowE2eTest {
                 .isEqualTo(successCounterBefore + 1.0d);
         assertThat(metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS)))
                 .isEqualTo(failureCounterBefore + 1.0d);
+    }
+
+    @Test
+    void shouldPublishTransferCompletedEventThroughOutbox() throws Exception {
+        var tenantId = randomUUID();
+        var sourceWallet = createWallet(tenantId, randomUUID(), EUR);
+        var destinationWallet = createWallet(tenantId, randomUUID(), EUR);
+        deposit(tenantId, sourceWallet.walletId(), ONE_HUNDRED, EUR, "e2e outbox deposit");
+
+        var outboxPublishCounterBefore = metricCount(
+                MetricName.OUTBOX_PUBLISH_SUCCESS,
+                metricTag(MetricTag.EVENT_TYPE, TRANSFER_COMPLETED.name())
+        );
+
+        var transfer = TRANSFER_API_CLIENT.createTransfer(
+                tenantId,
+                createTransferRequest(sourceWallet, destinationWallet, TWENTY_FIVE, "e2e outbox event"),
+                randomUUID().toString()
+        );
+
+        assertThat(transfer.status()).isEqualTo(COMPLETED.name());
+
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
+                assertThat(metricCount(MetricName.OUTBOX_PUBLISH_SUCCESS, metricTag(MetricTag.EVENT_TYPE, TRANSFER_COMPLETED.name())))
+                        .isGreaterThan(outboxPublishCounterBefore)
+        );
     }
 
     @Test
@@ -308,5 +337,9 @@ class TransferFlowE2eTest {
 
     private String metricTag(MetricTag tag, TransferMetricOutcome outcome) {
         return "%s:%s".formatted(tag.getValue(), outcome.getTagValue());
+    }
+
+    private String metricTag(MetricTag tag, String value) {
+        return "%s:%s".formatted(tag.getValue(), value);
     }
 }
