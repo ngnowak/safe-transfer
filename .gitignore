@@ -1,7 +1,7 @@
 .idea/
 *.iml
+AGENTS.md
 
-INTERVIEW.md
 plan.md
 
 .gradle
