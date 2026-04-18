@@ -26,7 +26,9 @@ package "Wallet Module" {
 package "Transfer Module" {
   [TransferService] as TransferService
   [TransferRequestHasher] as TransferRequestHasher
-  [TransferRiskPolicy] as TransferRiskPolicy
+  [TransferPolicyEvaluator] as TransferPolicyEvaluator
+  [TransferPolicy] as TransferPolicy
+  [SingleTransferLimitPolicy] as SingleTransferLimitPolicy
   [TransferRiskProperties] as TransferRiskProperties
   [QueryTransferUseCase] as QueryTransfer
   [TransferRepository] as TransferRepository
@@ -72,8 +74,10 @@ TransferController --> TransferService : create transfer
 TransferController --> QueryTransfer : get transfer
 
 TransferService --> TransferRequestHasher : hash request
-TransferService --> TransferRiskPolicy : validate risk limits
-TransferRiskPolicy --> TransferRiskProperties : configured limit
+TransferService --> TransferPolicyEvaluator : validate policies
+TransferPolicyEvaluator --> TransferPolicy : run all policies
+TransferPolicy <|.. SingleTransferLimitPolicy
+SingleTransferLimitPolicy --> TransferRiskProperties : configured limit
 TransferService --> WalletRepository : lock wallets
 TransferService --> LedgerRepository : calculate balance\nsave debit/credit
 TransferService --> TransferRepository : save transfer

@@ -8,7 +8,8 @@ actor Client
 participant TransferController
 participant TransferService
 participant TransferRequestHasher as Hasher
-participant TransferRiskPolicy as RiskPolicy
+participant TransferPolicyEvaluator as PolicyEvaluator
+participant SingleTransferLimitPolicy as LimitPolicy
 participant WalletRepository
 participant LedgerEntryRepository as LedgerRepository
 participant TransferRepository
@@ -36,13 +37,16 @@ else new transfer
   TransferService -> WalletRepository : lock source and destination wallets\nin deterministic order
   WalletRepository --> TransferService : wallets
 
-  TransferService -> RiskPolicy : validate(request)
+  TransferService -> PolicyEvaluator : validate(request)
+  PolicyEvaluator -> LimitPolicy : validate(request)
   alt transfer exceeds configured risk limit
-    RiskPolicy --> TransferService : TransferLimitExceeded
+    LimitPolicy --> PolicyEvaluator : TransferLimitExceeded
+    PolicyEvaluator --> TransferService : TransferLimitExceeded
     TransferService --> TransferController : failure
     TransferController --> Client : 409 Conflict
   else risk accepted
-    RiskPolicy --> TransferService : ok
+    LimitPolicy --> PolicyEvaluator : ok
+    PolicyEvaluator --> TransferService : ok
 
     TransferService -> LedgerRepository : calculateBalance(sourceWallet)
     LedgerRepository --> TransferService : available balance
@@ -77,9 +81,10 @@ note over TransferService,PostgreSQL
   are written in one database transaction.
 end note
 
-note right of RiskPolicy
+note right of LimitPolicy
   Max single transfer amount is externalized in:
   safetransfer.transfer.risk.max-single-transfer-amount
+  New checks can be added as TransferPolicy implementations.
 end note
 
 @enduml

@@ -36,7 +36,7 @@ It is intentionally scoped as a modular monolith. The main goal is not CRUD, but
 4. Outbox publishing claims rows in a short DB transaction and dispatches outside that transaction.
 5. Stale `PROCESSING` outbox rows can be reclaimed.
 6. Audit consumption is idempotent, so duplicate message delivery is safe.
-7. Transfer risk limits are externalized in `application.yaml`.
+7. Transfer policies are extensible, and the current risk limit is externalized in `application.yaml`.
 8. Transfer and outbox behavior is observable through custom Micrometer metrics.
 9. Tests are split into unit, integration, and e2e layers.
 
@@ -149,7 +149,7 @@ Audit inserts are idempotent via unique `source_event_id`, so duplicate Kafka de
 
 ### Risk Policy
 
-`TransferRiskPolicy` checks the configured maximum single transfer amount:
+`TransferPolicyEvaluator` runs all `TransferPolicy` implementations. The current `SingleTransferLimitPolicy` checks the configured maximum single transfer amount:
 
 ```yaml
 safetransfer:
@@ -159,7 +159,7 @@ safetransfer:
       max-single-transfer-amount: 10000.00
 ```
 
-This shows that business behavior can be externalized in configuration instead of hardcoded.
+This shows that business behavior can be externalized in configuration instead of hardcoded, and that new policies can be added by implementing one interface.
 
 ## Tests To Mention
 
@@ -193,7 +193,7 @@ Useful commands:
 
 - Authentication and authorization are intentionally out of scope.
 - Tenant ID is passed in the path; in production it should be checked against authenticated user claims.
-- The risk policy is intentionally simple, not a full fraud engine.
+- The current risk policy is intentionally simple, not a full fraud engine.
 - Kafka schema registry, dead-letter topics, and advanced retry policies are future improvements.
 - This is a focused money-transfer demo, not a complete banking product.
 
@@ -215,4 +215,4 @@ Useful commands:
 
 ## Short Pitch
 
-SafeTransfer is a Spring Boot wallet transfer system focused on correctness. Balances are derived from immutable ledger entries. Transfer creation is idempotent using a request hash. Transfer state and outbox events are committed atomically. Outbox publishing is retried and happens outside the DB claim transaction. Kafka-backed audit processing is idempotent, so duplicate delivery is safe. The transfer risk limit is externalized in configuration and covered by tests.
+SafeTransfer is a Spring Boot wallet transfer system focused on correctness. Balances are derived from immutable ledger entries. Transfer creation is idempotent using a request hash. Transfer state and outbox events are committed atomically. Outbox publishing is retried and happens outside the DB claim transaction. Kafka-backed audit processing is idempotent, so duplicate delivery is safe. Transfer policies are extensible, and the current risk limit is externalized in configuration and covered by tests.

@@ -36,7 +36,7 @@ public class TransferService {
     private final OutboxEventFactory outboxEventFactory;
     private final TransferMetrics transferMetrics;
     private final TransferRequestHasher transferRequestHasher;
-    private final TransferRiskPolicy transferRiskPolicy;
+    private final TransferPolicyEvaluator transferPolicyEvaluator;
 
     @Transactional
     public Result<TransferError, Transfer> transfer(TenantId tenantId, String idempotencyKey, CreateTransferRequest request) {
@@ -133,11 +133,12 @@ public class TransferService {
             return Result.failure(new TransferError.CurrencyMismatch(destinationWallet.getCurrency(), requestCurrency));
         }
 
-        var riskViolation = transferRiskPolicy.validate(request);
-        if (riskViolation.isPresent()) {
+        var riskViolation = transferPolicyEvaluator.validate(request);
+        if (riskViolation.isFailure()) {
+            var error = riskViolation.getError().orElseThrow();
             log.warn("Transfer blocked by risk policy: tenantId={}, sourceWalletId={}, amount={}, reason={}",
-                    tenantId, sourceWalletId, request.amount(), riskViolation.get().getMessage());
-            return Result.failure(riskViolation.get());
+                    tenantId, sourceWalletId, request.amount(), error.getMessage());
+            return Result.failure(error);
         }
 
         var availableBalance = ledgerEntryRepository.calculateBalance(tenantId, sourceWalletId);

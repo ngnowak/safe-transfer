@@ -1,5 +1,6 @@
 package com.nn.safetransfer.transfer.application;
 
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.common.metrics.TransferMetrics;
 import com.nn.safetransfer.common.metrics.TransferMetricOutcome;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
@@ -45,6 +46,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -77,7 +79,7 @@ class TransferServiceTest {
     private TransferRequestHasher transferRequestHasher;
 
     @Mock
-    private TransferRiskPolicy transferRiskPolicy;
+    private TransferPolicyEvaluator transferPolicyEvaluator;
 
     @InjectMocks
     private TransferService transferService;
@@ -87,6 +89,7 @@ class TransferServiceTest {
         sample = mock(Timer.Sample.class);
         given(transferMetrics.startTransfer()).willReturn(sample);
         given(transferRequestHasher.hash(any(CreateTransferRequest.class))).willReturn("request-hash");
+        lenient().when(transferPolicyEvaluator.validate(any(CreateTransferRequest.class))).thenReturn(Result.emptySuccessResult());
     }
 
     @Test
@@ -371,8 +374,8 @@ class TransferServiceTest {
                 .willReturn(Optional.of(sourceWallet));
         given(walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId))
                 .willReturn(Optional.of(destinationWallet));
-        given(transferRiskPolicy.validate(request))
-                .willReturn(Optional.of(new TransferError.TransferLimitExceeded(
+        given(transferPolicyEvaluator.validate(request))
+                .willReturn(Result.failure(new TransferError.TransferLimitExceeded(
                         new BigDecimal("1000.00"),
                         new BigDecimal("500.00")
                 )));

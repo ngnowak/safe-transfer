@@ -59,7 +59,7 @@ It uses PostgreSQL for persistence, Liquibase for schema management, and a trans
 
 1. Client sends a transfer request.
 2. `TransferService` validates wallets, currency, balance, and idempotency.
-3. `TransferRiskPolicy` checks configured risk limits from `application.yaml`.
+3. `TransferPolicyEvaluator` runs configured transfer policies, including the single-transfer risk limit from `application.yaml`.
 4. Transfer row and ledger rows are written in one transaction.
 5. A `transfer.completed` outbox row is written in the same transaction.
 6. A newly created transfer returns `201 Created`; an idempotent replay of the same request returns the existing transfer with `200 OK`.
@@ -81,24 +81,24 @@ It uses PostgreSQL for persistence, Liquibase for schema management, and a trans
 
 ## Architecture
 
-PlantUML diagrams are stored in [`architecture/README.md`](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/README.md).
+PlantUML diagrams are stored in [`architecture/README.md`](architecture/README.md).
 
 Useful interview walkthrough diagrams:
 
-- [System context](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/system-context.puml)
-- [Component view](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/component-view.puml)
-- [Domain model](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/domain-model.puml)
-- [Transfer sequence](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/transfer-sequence.puml)
-- [Outbox, Kafka, and audit sequence](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/outbox-kafka-audit-sequence.puml)
-- [Outbox state lifecycle](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/outbox-state.puml)
-- [Use cases](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/use-cases.puml)
-- [Local deployment](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/deployment-local.puml)
+- [System context](architecture/system-context.puml)
+- [Component view](architecture/component-view.puml)
+- [Domain model](architecture/domain-model.puml)
+- [Transfer sequence](architecture/transfer-sequence.puml)
+- [Outbox, Kafka, and audit sequence](architecture/outbox-kafka-audit-sequence.puml)
+- [Outbox state lifecycle](architecture/outbox-state.puml)
+- [Use cases](architecture/use-cases.puml)
+- [Local deployment](architecture/deployment-local.puml)
 
 ## Observability
 
 SafeTransfer exposes health checks, Actuator metrics, Prometheus-formatted metrics, and custom business metrics for transfer outcomes and outbox publishing reliability.
 
-See [Observability](/C:/Users/Kamil/IdeaProjects/safetransfer/docs/observability.md).
+See [Observability](docs/observability.md).
 
 Demo script:
 
@@ -128,7 +128,7 @@ Demo script:
 
 ### Start local infrastructure
 
-The application points to [`docker/docker-compose.yml`](/C:/Users/Kamil/IdeaProjects/safetransfer/docker/docker-compose.yml), which starts PostgreSQL and Kafka.
+The application points to [`docker/docker-compose.yml`](docker/docker-compose.yml), which starts PostgreSQL and Kafka.
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d
@@ -160,7 +160,7 @@ Swagger UI:
 
 ### Run the full Docker stack
 
-This starts PostgreSQL, Kafka, and the application container from [`docker/docker-compose-with-app.yml`](/C:/Users/Kamil/IdeaProjects/safetransfer/docker/docker-compose-with-app.yml).
+This starts PostgreSQL, Kafka, and the application container from [`docker/docker-compose-with-app.yml`](docker/docker-compose-with-app.yml).
 
 ```bash
 docker compose -f docker/docker-compose-with-app.yml up --build
@@ -202,7 +202,9 @@ Wallets are loaded in deterministic order to reduce deadlock risk during transfe
 
 ### Configurable risk policy
 
-The maximum single transfer amount is externalized in `application.yaml` under `safetransfer.transfer.risk`.
+Transfer policies implement the `TransferPolicy` interface and are collected by `TransferPolicyEvaluator`.
+The current `SingleTransferLimitPolicy` checks the maximum single transfer amount externalized in `application.yaml` under `safetransfer.transfer.risk`.
+Adding another policy means adding another `TransferPolicy` implementation.
 
 ### Transactional outbox
 

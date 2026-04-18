@@ -45,7 +45,15 @@ class Transfer {
   Instant createdAt
 }
 
-class TransferRiskPolicy {
+interface TransferPolicy {
+  validate(CreateTransferRequest)
+}
+
+class TransferPolicyEvaluator {
+  validate(CreateTransferRequest)
+}
+
+class SingleTransferLimitPolicy {
   validate(CreateTransferRequest)
 }
 
@@ -102,7 +110,9 @@ Wallet "1" o-- "*" LedgerEntry
 Wallet "1" <-- "*" Transfer : source
 Wallet "1" <-- "*" Transfer : destination
 Transfer "1" --> "1" OutboxEvent : emits
-TransferRiskPolicy --> TransferRiskProperties : reads
+TransferPolicyEvaluator --> TransferPolicy : evaluates
+TransferPolicy <|.. SingleTransferLimitPolicy
+SingleTransferLimitPolicy --> TransferRiskProperties : reads
 OutboxEvent "1" --> "0..1" AuditEvent : audited as
 LedgerEntry --> LedgerEntryType
 Transfer --> TransferStatus
@@ -124,8 +134,9 @@ note bottom of Transfer
   Request hash detects same-key/different-body conflicts.
 end note
 
-note bottom of TransferRiskPolicy
+note bottom of SingleTransferLimitPolicy
   Risk limits are externalized in application.yaml.
+  New transfer policies implement TransferPolicy.
 end note
 
 @enduml

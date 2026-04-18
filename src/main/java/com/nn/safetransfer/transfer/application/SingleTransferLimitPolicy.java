@@ -1,29 +1,30 @@
 package com.nn.safetransfer.transfer.application;
 
+import com.nn.safetransfer.common.domain.result.Empty;
+import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
-
 @Component
 @RequiredArgsConstructor
-public class TransferRiskPolicy {
+public class SingleTransferLimitPolicy implements TransferPolicy {
 
     private final TransferRiskProperties properties;
 
-    public Optional<TransferError> validate(CreateTransferRequest request) {
+    @Override
+    public Result<TransferError, Empty> validate(CreateTransferRequest request) {
         if (!properties.enabled()) {
-            return Optional.empty();
+            return Result.emptySuccessResult();
         }
 
         if (request.amount().compareTo(properties.maxSingleTransferAmount()) > 0) {
-            return Optional.of(new TransferError.TransferLimitExceeded(
+            return Result.failure(new TransferError.TransferLimitExceeded(
                     request.amount(),
                     properties.maxSingleTransferAmount()
             ));
         }
 
-        return Optional.empty();
+        return Result.emptySuccessResult();
     }
 }
