@@ -93,6 +93,18 @@ Useful interview walkthrough diagrams:
 - [Use cases](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/use-cases.puml)
 - [Local deployment](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/deployment-local.puml)
 
+## Observability
+
+SafeTransfer exposes health checks, Actuator metrics, Prometheus-formatted metrics, and custom business metrics for transfer outcomes and outbox publishing reliability.
+
+See [Observability](/C:/Users/Kamil/IdeaProjects/safetransfer/docs/observability.md).
+
+Demo script:
+
+```powershell
+.\scripts\demo-observability.ps1
+```
+
 ## Outbox States
 
 - `NEW`
