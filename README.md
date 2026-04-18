@@ -27,8 +27,11 @@ The project is intentionally built as a modular monolith. It uses PostgreSQL for
 - Spring Web MVC
 - Spring Data JPA
 - Spring Validation
+- Spring Kafka
+- Spring Actuator
 - PostgreSQL
 - Liquibase
+- Micrometer / Prometheus registry
 - Lombok
 - Spring Scheduling
 - JUnit 5 / Mockito
@@ -56,9 +59,12 @@ The project is intentionally built as a modular monolith. It uses PostgreSQL for
 2. `TransferService` validates wallets, currency, balance, and idempotency.
 3. Transfer row and ledger rows are written in one transaction.
 4. A `transfer.completed` outbox row is written in the same transaction.
-5. `OutboxPublisher` claims retryable outbox rows with `FOR UPDATE SKIP LOCKED`.
-6. `AuditConsumer` records an audit row.
-7. Outbox row becomes `PUBLISHED`, `FAILED`, or `FATAL`.
+5. A newly created transfer returns `201 Created`; an idempotent replay of the same request returns the existing transfer with `200 OK`.
+6. `OutboxPublisher` atomically claims retryable outbox rows, marks them `PROCESSING`, and commits the claim transaction.
+7. The claimed event is dispatched outside the claim transaction.
+8. With Kafka publishing enabled, the event is sent to Kafka and consumed by `AuditKafkaListener`; otherwise the local in-process dispatcher calls `AuditConsumer` directly.
+9. `AuditConsumer` records an audit row.
+10. Outbox row becomes `PUBLISHED`, `FAILED`, or `FATAL`.
 
 ### Reliability Rules
 
@@ -67,69 +73,30 @@ The project is intentionally built as a modular monolith. It uses PostgreSQL for
 - Duplicate audit inserts are tolerated via unique `source_event_id`.
 - Outbox publishing retries failed rows.
 - Rows that exceed retry limit become `FATAL`.
-- Concurrent publishers do not double-claim rows because rows are selected with `FOR UPDATE SKIP LOCKED`.
+- Concurrent publishers do not double-claim rows because claim uses `FOR UPDATE SKIP LOCKED` and immediately marks rows as `PROCESSING`.
+- Stale `PROCESSING` rows can be reclaimed after the claim lease expires.
 
-## Architecture Diagram
+## Architecture
 
-```mermaid
-flowchart LR
-    Client[Client]
-    API[REST Controllers]
-    Transfer[TransferService]
-    Wallet[Wallet Services]
-    Ledger[Ledger Repository]
-    TransferRepo[Transfer Repository]
-    Outbox[(outbox_event)]
-    Publisher[OutboxPublisher]
-    AuditConsumer[AuditConsumer]
-    Audit[(audit_event)]
-    Pg[(PostgreSQL)]
+PlantUML diagrams are stored in [`architecture/README.md`](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/README.md).
 
-    Client --> API
-    API --> Transfer
-    API --> Wallet
-    Transfer --> TransferRepo
-    Transfer --> Ledger
-    Transfer --> Outbox
-    TransferRepo --> Pg
-    Ledger --> Pg
-    Outbox --> Pg
+Useful interview walkthrough diagrams:
 
-    Publisher --> Outbox
-    Publisher --> AuditConsumer
-    AuditConsumer --> Audit
-    Audit --> Pg
-```
-
-## Sequence Diagram
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant TC as TransferController
-    participant TS as TransferService
-    participant DB as PostgreSQL
-    participant OP as OutboxPublisher
-    participant AC as AuditConsumer
-
-    C->>TC: POST /transfers
-    TC->>TS: transfer(...)
-    TS->>DB: save transfer
-    TS->>DB: save ledger entries
-    TS->>DB: save outbox_event(NEW)
-    TS-->>TC: transfer response
-    TC-->>C: 200 OK
-
-    OP->>DB: claim retryable outbox rows\nFOR UPDATE SKIP LOCKED
-    OP->>AC: consume(outboxEvent)
-    AC->>DB: insert audit_event
-    OP->>DB: update outbox_event -> PUBLISHED
-```
+- [System context](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/system-context.puml)
+- [Component view](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/component-view.puml)
+- [Domain model](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/domain-model.puml)
+- [Transfer sequence](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/transfer-sequence.puml)
+- [Outbox, Kafka, and audit sequence](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/outbox-kafka-audit-sequence.puml)
+- [Outbox state lifecycle](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/outbox-state.puml)
+- [Use cases](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/use-cases.puml)
+- [Local deployment](/C:/Users/Kamil/IdeaProjects/safetransfer/architecture/deployment-local.puml)
 
 ## Outbox States
 
 - `NEW`
   - freshly written business event
+- `PROCESSING`
+  - claimed by a publisher; stale claims can be retried
 - `PUBLISHED`
   - successfully processed by async consumer
 - `FAILED`
@@ -144,9 +111,9 @@ sequenceDiagram
 - JDK 25
 - Docker
 
-### Start PostgreSQL
+### Start local infrastructure
 
-The application points to [`docker/docker-compose.yml`](/C:/Users/Kamil/IdeaProjects/safetransfer/docker/docker-compose.yml).
+The application points to [`docker/docker-compose.yml`](/C:/Users/Kamil/IdeaProjects/safetransfer/docker/docker-compose.yml), which starts PostgreSQL and Kafka.
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d
@@ -161,6 +128,14 @@ docker compose -f docker/docker-compose.yml up -d
 On Windows:
 
 ```powershell
+.\gradlew.bat bootRun
+```
+
+By default, local `bootRun` uses the in-process outbox dispatcher. To test Kafka publishing locally, enable Kafka publishing explicitly:
+
+```powershell
+$env:APPLICATION_KAFKA_PUBLISHING="true"
+$env:SPRING_KAFKA_BOOTSTRAP_SERVERS="localhost:9092"
 .\gradlew.bat bootRun
 ```
 
@@ -215,18 +190,26 @@ Wallets are loaded in deterministic order to reduce deadlock risk during transfe
 Business state and async side effects are separated correctly:
 
 - transfer transaction writes `outbox_event`
-- publisher processes the outbox separately
-- audit persistence happens asynchronously
+- publisher claims outbox rows in a short transaction
+- Kafka dispatch happens outside the claim transaction
+- publisher updates final outbox status in a separate transaction
+- audit persistence happens asynchronously after event delivery
 
 ## Current Scope
 
 Implemented async flow:
 
-- `transfer.completed` -> `outbox_event` -> `OutboxPublisher` -> `AuditConsumer` -> `audit_event`
+- Kafka disabled: `transfer.completed` -> `outbox_event` -> `OutboxPublisher` -> `AuditConsumer` -> `audit_event`
+- Kafka enabled: `transfer.completed` -> `outbox_event` -> `OutboxPublisher` -> Kafka -> `AuditKafkaListener` -> `AuditConsumer` -> `audit_event`
 
-Future candidates:
+## Expansion Ideas
 
-- emit outbox events for wallet creation
-- emit outbox events for deposits
-- metrics around publisher success / failure / fatal rows
-- admin view for outbox and audit history
+- Security: enable Spring Security with OAuth2/JWT, tenant-aware authorization, service-to-service authentication, and audit-friendly principal propagation.
+- Observability: Prometheus metrics are already exposed through Actuator; the next step is Grafana dashboards, alert rules for failed/fatal outbox rows, transfer latency, Kafka lag, and database pool pressure.
+- Distributed tracing: add OpenTelemetry traces across REST requests, transfer processing, outbox publishing, Kafka delivery, and audit persistence.
+- Kafka hardening: add schema versioning, a dead-letter topic, consumer retry/backoff policy, and explicit monitoring for consumer lag.
+- Operations: add an admin endpoint or internal UI for inspecting outbox rows, retrying `FATAL` rows, and viewing audit history.
+- Product features: wallet status transitions, daily transfer limits, holds/reservations, refunds/reversals, and external payment provider integration.
+- API maturity: add versioned OpenAPI examples, pagination/filtering for wallet and transfer history, and consistent correlation IDs in responses.
+- Deployment readiness: add container image publishing, environment-specific configuration, Kubernetes manifests or Helm charts, and secret management.
+- Quality gates: add mutation testing, dependency/security scanning, contract tests, and performance tests for concurrent transfers.

@@ -3,12 +3,17 @@ title Outbox Event Lifecycle
 
 [*] --> NEW : business tx committed
 
-NEW --> PUBLISHED : publish success
-NEW --> FAILED : publish failure
+NEW --> PROCESSING : claimed for publish
+FAILED --> PROCESSING : retry claimed
+PROCESSING --> PROCESSING : stale claim reclaimed
+PROCESSING --> PUBLISHED : publish success
+PROCESSING --> FAILED : publish failure and retryCount < maxRetries
+PROCESSING --> FATAL : publish failure and retryCount >= maxRetries
 
-FAILED --> PUBLISHED : retry success
-FAILED --> FAILED : retry failure and retryCount < maxRetries
-FAILED --> FATAL : retry failure and retryCount >= maxRetries
+note right of PROCESSING
+  claimed_at stores the claim lease timestamp.
+  Stale PROCESSING rows can be claimed again.
+end note
 
 PUBLISHED --> [*]
 FATAL --> [*]

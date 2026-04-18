@@ -6,6 +6,7 @@ skinparam sequenceMessageAlign center
 
 participant OutboxPublisherJob
 participant OutboxPublisherImpl as Publisher
+participant OutboxPublishingTransactions as Transactions
 participant OutboxEventRepository as OutboxRepository
 participant KafkaOutboxEventDispatcher as KafkaDispatcher
 queue Kafka
@@ -16,10 +17,12 @@ participant AuditEventRepository as AuditRepository
 database PostgreSQL
 
 OutboxPublisherJob -> Publisher : publishPending(batchSize)
-Publisher -> OutboxRepository : claimTopRetryableOrderByOccurredAtAsc(...)
-OutboxRepository -> PostgreSQL : select NEW/FAILED events\nFOR UPDATE SKIP LOCKED
+Publisher -> Transactions : claimPending(batchSize, maxRetries)
+Transactions -> OutboxRepository : claimTopRetryableOrderByOccurredAtAsc(...)
+OutboxRepository -> PostgreSQL : update NEW/FAILED/stale PROCESSING\nset PROCESSING, claimed_at\nFOR UPDATE SKIP LOCKED
 PostgreSQL --> OutboxRepository : claimed events
-OutboxRepository --> Publisher : events
+OutboxRepository --> Transactions : events
+Transactions --> Publisher : events
 
 loop each outbox event
   Publisher -> KafkaDispatcher : dispatch(outboxEvent)
@@ -27,11 +30,13 @@ loop each outbox event
 
   alt Kafka publish succeeds
     KafkaDispatcher --> Publisher : ok
-    Publisher -> OutboxRepository : save status PUBLISHED\npublishedAt now
+    Publisher -> Transactions : save status PUBLISHED\npublishedAt now, claimedAt null
+    Transactions -> OutboxRepository : save(publishedEvent)
     OutboxRepository -> PostgreSQL : update outbox_event
   else Kafka publish fails
     KafkaDispatcher --> Publisher : OutboxProcessingException
-    Publisher -> OutboxRepository : save status FAILED or FATAL\nincrement retryCount
+    Publisher -> Transactions : save status FAILED or FATAL\nincrement retryCount, claimedAt null
+    Transactions -> OutboxRepository : save(failedEvent)
     OutboxRepository -> PostgreSQL : update outbox_event
   end
 end
@@ -53,8 +58,14 @@ end
 
 note right of Publisher
   Retry states:
-  NEW -> FAILED -> FAILED -> FATAL
-  or NEW -> PUBLISHED
+  NEW -> PROCESSING -> FAILED
+  FAILED -> PROCESSING -> FATAL
+  or PROCESSING -> PUBLISHED
+end note
+
+note bottom of Transactions
+  Claim and final status updates use short DB transactions.
+  Kafka dispatch happens outside the claim transaction.
 end note
 
 note bottom of AuditConsumer

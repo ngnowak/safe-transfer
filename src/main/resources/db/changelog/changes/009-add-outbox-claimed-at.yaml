@@ -1,0 +1,20 @@
+databaseChangeLog:
+  - changeSet:
+      id: 009-add-outbox-claimed-at
+      author: nnowak
+      changes:
+        - addColumn:
+            tableName: outbox_event
+            columns:
+              - column:
+                  name: claimed_at
+                  type: timestamp with time zone
+        - createIndex:
+            tableName: outbox_event
+            indexName: idx_outbox_event_status_claimed_at
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: claimed_at
+

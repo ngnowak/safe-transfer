@@ -24,6 +24,7 @@ Main points to explain:
 - Wallet balances are derived from immutable ledger entries.
 - Transfers create debit and credit ledger entries in one transaction.
 - Transfer completion creates an outbox event in the same transaction.
-- The outbox publisher sends events asynchronously.
+- The outbox publisher claims rows in a short transaction and dispatches outside the claim transaction.
 - Kafka publishing can be enabled for external-style event delivery.
+- Stale `PROCESSING` outbox rows can be reclaimed.
 - Audit consumption is idempotent, so duplicate event delivery does not create duplicate audit rows.

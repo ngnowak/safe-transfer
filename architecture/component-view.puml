@@ -33,6 +33,7 @@ package "Outbox Module" {
   [OutboxEventFactory] as OutboxFactory
   [OutboxPublisherJob] as PublisherJob
   [OutboxPublisherImpl] as Publisher
+  [OutboxPublishingTransactions] as PublisherTransactions
   [OutboxEventDispatcher] as Dispatcher
   [InProcessOutboxEventDispatcher] as InProcessDispatcher
   [KafkaOutboxEventDispatcher] as KafkaDispatcher
@@ -67,7 +68,8 @@ QueryBalance --> LedgerRepository : calculate balance
 DepositService --> LedgerRepository : save credit
 
 PublisherJob --> Publisher : scheduled publish
-Publisher --> OutboxRepository : claim retryable events
+Publisher --> PublisherTransactions : claim and save status
+PublisherTransactions --> OutboxRepository : claim retryable events\nsave final status
 Publisher --> Dispatcher : dispatch event
 Dispatcher <|.. InProcessDispatcher
 Dispatcher <|.. KafkaDispatcher
