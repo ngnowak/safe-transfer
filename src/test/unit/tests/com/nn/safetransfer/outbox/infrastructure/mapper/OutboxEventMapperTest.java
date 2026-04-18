@@ -49,11 +49,11 @@ class OutboxEventMapperTest {
         assertAll(
                 () -> assertThat(entity.getId()).isEqualTo(id),
                 () -> assertThat(entity.getTenantId()).isEqualTo(tenantId),
-                () -> assertThat(entity.getAggregateType()).isEqualTo("TRANSFER"),
+                () -> assertThat(entity.getAggregateType()).isEqualTo(outboxEvent.aggregateType().name()),
                 () -> assertThat(entity.getAggregateId()).isEqualTo(aggregateId),
-                () -> assertThat(entity.getEventType()).isEqualTo("TRANSFER_COMPLETED"),
-                () -> assertThat(entity.getPayload()).isEqualTo("{\"transferId\":\"123\"}"),
-                () -> assertThat(entity.getStatus()).isEqualTo("NEW"),
+                () -> assertThat(entity.getEventType()).isEqualTo(outboxEvent.eventType().name()),
+                () -> assertThat(entity.getPayload()).isEqualTo(outboxEvent.payload()),
+                () -> assertThat(entity.getStatus()).isEqualTo(outboxEvent.status().name()),
                 () -> assertThat(entity.getOccurredAt()).isEqualTo(occurredAt),
                 () -> assertThat(entity.getClaimedAt()).isEqualTo(claimedAt),
                 () -> assertThat(entity.getPublishedAt()).isEqualTo(publishedAt),
@@ -75,11 +75,11 @@ class OutboxEventMapperTest {
         var entity = OutboxEventJpa.builder()
                 .id(id)
                 .tenantId(tenantId)
-                .aggregateType("TRANSFER")
+                .aggregateType(OutboxAggregateType.TRANSFER.name())
                 .aggregateId(aggregateId)
-                .eventType("TRANSFER_COMPLETED")
+                .eventType(EventType.TRANSFER_COMPLETED.name())
                 .payload("{\"transferId\":\"123\"}")
-                .status("PUBLISHED")
+                .status(OutboxStatus.PUBLISHED.name())
                 .occurredAt(occurredAt)
                 .claimedAt(claimedAt)
                 .publishedAt(publishedAt)

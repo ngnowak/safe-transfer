@@ -29,8 +29,8 @@ class WalletResponseMapperTest {
                 () -> assertThat(response.walletId()).isEqualTo(wallet.getId().value().toString()),
                 () -> assertThat(response.tenantId()).isEqualTo(tenantId.value().toString()),
                 () -> assertThat(response.customerId()).isEqualTo(customerId.value().toString()),
-                () -> assertThat(response.currency()).isEqualTo("GBP"),
-                () -> assertThat(response.status()).isEqualTo("ACTIVE")
+                () -> assertThat(response.currency()).isEqualTo(wallet.getCurrency().name()),
+                () -> assertThat(response.status()).isEqualTo(ACTIVE.name())
         );
     }
 }

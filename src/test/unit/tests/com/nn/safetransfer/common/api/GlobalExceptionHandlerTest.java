@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -90,7 +89,9 @@ class GlobalExceptionHandlerTest {
     @Test
     void shouldHandleWalletCurrencyMismatchException() {
         // given
-        var exception = new WalletCurrencyMismatchException(CurrencyCode.EUR, CurrencyCode.USD);
+        var walletCurrency = CurrencyCode.EUR;
+        var requestCurrency = CurrencyCode.USD;
+        var exception = new WalletCurrencyMismatchException(walletCurrency, requestCurrency);
 
         // when
         var response = handler.handleWalletCurrencyMismatch(exception);
@@ -100,7 +101,7 @@ class GlobalExceptionHandlerTest {
                 () -> assertThat(response.getStatusCode()).isEqualTo(BAD_REQUEST),
                 () -> assertThat(response.getBody()).isNotNull(),
                 () -> assertThat(response.getBody().errorId()).isNotNull(),
-                () -> assertThat(response.getBody().errorMessage()).contains("EUR").contains("USD"),
+                () -> assertThat(response.getBody().errorMessage()).contains(walletCurrency.name()).contains(requestCurrency.name()),
                 () -> assertThat(response.getBody().errors()).isNull()
         );
     }

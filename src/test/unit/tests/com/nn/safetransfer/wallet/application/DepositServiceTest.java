@@ -47,7 +47,7 @@ class DepositServiceTest {
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
         var wallet = Wallet.create(tenantId, CustomerId.create(), EUR);
-        var request = new DepositRequest(new BigDecimal("100.00"), "EUR", "Test deposit");
+        var request = new DepositRequest(new BigDecimal("100.00"), EUR.name(), "Test deposit");
         var captor = ArgumentCaptor.forClass(LedgerEntry.class);
 
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
@@ -79,7 +79,7 @@ class DepositServiceTest {
         // given
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
-        var request = new DepositRequest(new BigDecimal("100.00"), "EUR", null);
+        var request = new DepositRequest(new BigDecimal("100.00"), EUR.name(), null);
 
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.empty());
@@ -122,7 +122,7 @@ class DepositServiceTest {
         var walletId = WalletId.create();
         var wallet = Wallet.create(tenantId, CustomerId.create(), EUR);
         wallet.block();
-        var request = new DepositRequest(new BigDecimal("100.00"), "EUR", null);
+        var request = new DepositRequest(new BigDecimal("100.00"), EUR.name(), null);
 
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.of(wallet));

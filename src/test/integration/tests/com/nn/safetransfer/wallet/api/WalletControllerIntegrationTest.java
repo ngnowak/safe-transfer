@@ -168,8 +168,8 @@ class WalletControllerIntegrationTest {
         // given
         var tenantId = randomUUID();
         var body = """
-                {"customerId": null, "currency": "EUR"}
-                """;
+                {"customerId": null, "currency": "%s"}
+                """.formatted(EUR.name());
 
         // when
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)

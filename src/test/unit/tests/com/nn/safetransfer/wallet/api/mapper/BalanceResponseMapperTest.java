@@ -36,7 +36,7 @@ class BalanceResponseMapperTest {
         assertAll(
                 () -> assertThat(response.walletId()).isEqualTo(wallet.getId().toString()),
                 () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
-                () -> assertThat(response.currency()).isEqualTo("EUR"),
+                () -> assertThat(response.currency()).isEqualTo(wallet.getCurrency().name()),
                 () -> assertThat(response.balance()).isEqualByComparingTo(new BigDecimal("350.50"))
         );
     }

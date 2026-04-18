@@ -7,6 +7,7 @@ import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEvent
 import com.nn.safetransfer.outbox.application.OutboxProcessingException;
 import com.nn.safetransfer.outbox.application.OutboxPublisher;
 import com.nn.safetransfer.outbox.domain.OutboxEvent;
+import com.nn.safetransfer.outbox.domain.OutboxStatus;
 import com.nn.safetransfer.outbox.infrastructure.persistence.SpringDataOutboxEventRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
@@ -30,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.nn.safetransfer.TestAmounts.*;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -97,7 +99,7 @@ class OutboxPublisherFailureIntegrationTest {
         assertAll(
                 () -> assertThat(published).isZero(),
                 () -> assertThat(failingAuditConsumer.invocationCount()).isEqualTo(1),
-                () -> assertThat(outboxEvent.getStatus()).isEqualTo("FAILED"),
+                () -> assertThat(outboxEvent.getStatus()).isEqualTo(OutboxStatus.FAILED.name()),
                 () -> assertThat(outboxEvent.getRetryCount()).isEqualTo(1),
                 () -> assertThat(outboxEvent.getPublishedAt()).isNull(),
                 () -> assertThat(auditEventRepository.findAll()).isEmpty()
@@ -123,7 +125,7 @@ class OutboxPublisherFailureIntegrationTest {
                 () -> assertThat(thirdRun).isZero(),
                 () -> assertThat(fourthRun).isZero(),
                 () -> assertThat(failingAuditConsumer.invocationCount()).isEqualTo(3),
-                () -> assertThat(outboxEvent.getStatus()).isEqualTo("FATAL"),
+                () -> assertThat(outboxEvent.getStatus()).isEqualTo(OutboxStatus.FATAL.name()),
                 () -> assertThat(outboxEvent.getRetryCount()).isEqualTo(3),
                 () -> assertThat(outboxEvent.getPublishedAt()).isNull(),
                 () -> assertThat(auditEventRepository.findAll()).isEmpty()
@@ -137,10 +139,10 @@ class OutboxPublisherFailureIntegrationTest {
         var outboxEventId = outboxEventRepository.findAll().getFirst().getId();
         jdbcTemplate.update("""
                 update outbox_event
-                set status = 'PROCESSING',
+                set status = ?,
                     claimed_at = now() - interval '10 minutes'
                 where id = ?
-                """, outboxEventId);
+                """, OutboxStatus.PROCESSING.name(), outboxEventId);
 
         // when
         var published = outboxPublisher.publishPending(10);
@@ -150,7 +152,7 @@ class OutboxPublisherFailureIntegrationTest {
         assertAll(
                 () -> assertThat(published).isZero(),
                 () -> assertThat(failingAuditConsumer.invocationCount()).isEqualTo(1),
-                () -> assertThat(outboxEvent.getStatus()).isEqualTo("FAILED"),
+                () -> assertThat(outboxEvent.getStatus()).isEqualTo(OutboxStatus.FAILED.name()),
                 () -> assertThat(outboxEvent.getRetryCount()).isEqualTo(1),
                 () -> assertThat(outboxEvent.getClaimedAt()).isNull()
         );
@@ -171,7 +173,7 @@ class OutboxPublisherFailureIntegrationTest {
                 .build();
 
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());

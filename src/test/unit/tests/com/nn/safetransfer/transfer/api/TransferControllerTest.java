@@ -10,6 +10,7 @@ import com.nn.safetransfer.transfer.application.TransferError;
 import com.nn.safetransfer.transfer.application.TransferService;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.domain.TransferId;
+import com.nn.safetransfer.transfer.domain.TransferStatus;
 import com.nn.safetransfer.wallet.domain.Money;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
@@ -56,7 +57,7 @@ class TransferControllerTest {
         var sourceWalletId = UUID.randomUUID();
         var destinationWalletId = UUID.randomUUID();
         var amount = new BigDecimal("100.00");
-        var request = new CreateTransferRequest(sourceWalletId, destinationWalletId, amount, "EUR", "Payment");
+        var request = new CreateTransferRequest(sourceWalletId, destinationWalletId, amount, EUR.name(), "Payment");
 
         var transfer = Transfer.completed(
                 new TenantId(tenantId),
@@ -71,8 +72,8 @@ class TransferControllerTest {
                 .sourceWalletId(sourceWalletId.toString())
                 .destinationWalletId(destinationWalletId.toString())
                 .amount(amount)
-                .currency("EUR")
-                .status("COMPLETED")
+                .currency(EUR.name())
+                .status(TransferStatus.COMPLETED.name())
                 .reference("Payment")
                 .createdAt(Instant.now())
                 .build();
@@ -100,7 +101,7 @@ class TransferControllerTest {
         var sourceWalletId = UUID.randomUUID();
         var destinationWalletId = UUID.randomUUID();
         var amount = new BigDecimal("100.00");
-        var request = new CreateTransferRequest(sourceWalletId, destinationWalletId, amount, "EUR", "Payment");
+        var request = new CreateTransferRequest(sourceWalletId, destinationWalletId, amount, EUR.name(), "Payment");
 
         var transfer = Transfer.builder()
                 .id(com.nn.safetransfer.transfer.domain.TransferId.newId())
@@ -120,8 +121,8 @@ class TransferControllerTest {
                 .sourceWalletId(sourceWalletId.toString())
                 .destinationWalletId(destinationWalletId.toString())
                 .amount(amount)
-                .currency("EUR")
-                .status("COMPLETED")
+                .currency(EUR.name())
+                .status(TransferStatus.COMPLETED.name())
                 .reference("Payment")
                 .createdAt(Instant.now())
                 .build();
@@ -148,7 +149,7 @@ class TransferControllerTest {
         var walletId = WalletId.create();
         var request = new CreateTransferRequest(
                 walletId.value(), UUID.randomUUID(),
-                new BigDecimal("50.00"), "EUR", null
+                new BigDecimal("50.00"), EUR.name(), null
         );
 
         Result<TransferError, Transfer> result = Result.failure(new TransferError.WalletNotFound(walletId, new TenantId(tenantId)));
@@ -180,7 +181,7 @@ class TransferControllerTest {
         var walletId = UUID.randomUUID();
         var request = new CreateTransferRequest(
                 walletId, walletId,
-                new BigDecimal("50.00"), "EUR", null
+                new BigDecimal("50.00"), EUR.name(), null
         );
 
         Result<TransferError, Transfer> result = Result.failure(new TransferError.SameWalletTransfer());
@@ -213,7 +214,7 @@ class TransferControllerTest {
         var sourceWalletId = WalletId.create();
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), UUID.randomUUID(),
-                new BigDecimal("500.00"), "EUR", null
+                new BigDecimal("500.00"), EUR.name(), null
         );
 
         Result<TransferError, Transfer> result = Result.failure(new TransferError.InsufficientFunds(

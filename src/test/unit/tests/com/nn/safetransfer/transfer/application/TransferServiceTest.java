@@ -150,7 +150,7 @@ class TransferServiceTest {
 
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), destinationWalletId.value(),
-                amount, "EUR", "Payment"
+                amount, EUR.name(), "Payment"
         );
 
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey))
@@ -205,7 +205,7 @@ class TransferServiceTest {
         var walletId = UUID.randomUUID();
         var request = new CreateTransferRequest(
                 walletId, walletId,
-                new BigDecimal("10.00"), "EUR", null
+                new BigDecimal("10.00"), EUR.name(), null
         );
 
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, "key"))
@@ -232,7 +232,7 @@ class TransferServiceTest {
         var destinationWalletId = WalletId.create();
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), destinationWalletId.value(),
-                new BigDecimal("10.00"), "EUR", null
+                new BigDecimal("10.00"), EUR.name(), null
         );
 
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, "key"))
@@ -263,7 +263,7 @@ class TransferServiceTest {
 
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), destinationWalletId.value(),
-                new BigDecimal("10.00"), "EUR", null
+                new BigDecimal("10.00"), EUR.name(), null
         );
 
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, "key"))
@@ -295,7 +295,7 @@ class TransferServiceTest {
 
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), destinationWalletId.value(),
-                new BigDecimal("10.00"), "EUR", null
+                new BigDecimal("10.00"), EUR.name(), null
         );
 
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, "key"))
@@ -326,7 +326,7 @@ class TransferServiceTest {
 
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), destinationWalletId.value(),
-                new BigDecimal("500.00"), "EUR", null
+                new BigDecimal("500.00"), EUR.name(), null
         );
 
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, "key"))
@@ -360,7 +360,7 @@ class TransferServiceTest {
 
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), destinationWalletId.value(),
-                new BigDecimal("1000.00"), "EUR", null
+                new BigDecimal("1000.00"), EUR.name(), null
         );
 
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, "key"))
@@ -403,7 +403,7 @@ class TransferServiceTest {
 
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), destinationWalletId.value(),
-                new BigDecimal("50.00"), "EUR", null
+                new BigDecimal("50.00"), EUR.name(), null
         );
 
         given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey))
@@ -441,7 +441,7 @@ class TransferServiceTest {
 
         var request = new CreateTransferRequest(
                 sourceWalletId.value(), destinationWalletId.value(),
-                new BigDecimal("50.00"), "EUR", null
+                new BigDecimal("50.00"), EUR.name(), null
         );
 
         given(transferRequestHasher.hash(request)).willReturn("different-request-hash");
@@ -500,7 +500,7 @@ class TransferServiceTest {
     private CreateTransferRequest createTransferRequest() {
         return new CreateTransferRequest(
                 UUID.randomUUID(), UUID.randomUUID(),
-                new BigDecimal("50.00"), "EUR", "Payment"
+                new BigDecimal("50.00"), EUR.name(), "Payment"
         );
     }
 

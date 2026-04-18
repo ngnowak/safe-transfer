@@ -45,13 +45,13 @@ class AuditEventFactoryTest {
                 () -> assertThat(auditEvent.id()).isNotEqualTo(eventId),
                 () -> assertThat(auditEvent.sourceEventId()).isEqualTo(eventId),
                 () -> assertThat(auditEvent.tenantId()).isEqualTo(tenantId),
-                () -> assertThat(auditEvent.aggregateType()).isEqualTo("TRANSFER"),
+                () -> assertThat(auditEvent.aggregateType()).isEqualTo(outboxEvent.aggregateType().name()),
                 () -> assertThat(auditEvent.aggregateId()).isEqualTo(aggregateId),
-                () -> assertThat(auditEvent.eventType()).isEqualTo("TRANSFER_COMPLETED"),
-                () -> assertThat(auditEvent.payload()).isEqualTo("{\"transferId\":\"123\"}"),
+                () -> assertThat(auditEvent.eventType()).isEqualTo(outboxEvent.eventType().name()),
+                () -> assertThat(auditEvent.payload()).isEqualTo(outboxEvent.payload()),
                 () -> assertThat(auditEvent.recordedAt()).isNotNull(),
-                () -> assertThat(auditEvent.correlationId()).isEqualTo("corr-123"),
-                () -> assertThat(auditEvent.causationId()).isEqualTo("cause-123")
+                () -> assertThat(auditEvent.correlationId()).isEqualTo(outboxEvent.correlationId()),
+                () -> assertThat(auditEvent.causationId()).isEqualTo(outboxEvent.causationId())
         );
     }
 }

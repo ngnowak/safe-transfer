@@ -2,6 +2,7 @@ package com.nn.safetransfer.wallet.api;
 
 import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
+import com.nn.safetransfer.ledger.domain.LedgerEntryType;
 import com.nn.safetransfer.wallet.api.dto.BalanceResponse;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
@@ -9,7 +10,6 @@ import com.nn.safetransfer.wallet.api.dto.DepositResponse;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
 import com.nn.safetransfer.wallet.api.mapper.BalanceResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.DepositResponseMapper;
-import com.nn.safetransfer.wallet.api.mapper.WalletResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.WalletResultMapper;
 import com.nn.safetransfer.wallet.application.BalanceResult;
 import com.nn.safetransfer.wallet.application.CreateWalletCommand;
@@ -37,6 +37,7 @@ import java.util.UUID;
 
 import static com.nn.safetransfer.common.domain.result.Result.success;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
+import static com.nn.safetransfer.wallet.domain.WalletStatus.ACTIVE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
@@ -79,15 +80,15 @@ class WalletControllerTest {
         // given
         var tenantId = UUID.randomUUID();
         var customerId = UUID.randomUUID();
-        var request = new CreateWalletRequest(customerId, "EUR");
+        var request = new CreateWalletRequest(customerId, EUR.name());
         var command = new CreateWalletCommand(new TenantId(tenantId), new CustomerId(customerId), EUR);
         var wallet = Wallet.create(new TenantId(tenantId), new CustomerId(customerId), EUR);
         var expectedResponse = WalletResponse.builder()
                 .walletId(wallet.getId().toString())
                 .tenantId(tenantId.toString())
                 .customerId(customerId.toString())
-                .currency("EUR")
-                .status("ACTIVE")
+                .currency(EUR.name())
+                .status(ACTIVE.name())
                 .build();
 
         Result<WalletError, Wallet> result = success(wallet);
@@ -117,8 +118,8 @@ class WalletControllerTest {
         var expectedResponse = WalletResponse.builder()
                 .walletId(walletId.toString())
                 .tenantId(tenantId.toString())
-                .currency("EUR")
-                .status("ACTIVE")
+                .currency(EUR.name())
+                .status(ACTIVE.name())
                 .build();
 
         given(queryWalletUseCase.handle(any(GetWalletQuery.class))).willReturn(result);
@@ -140,7 +141,7 @@ class WalletControllerTest {
         // given
         var tenantId = UUID.randomUUID();
         var walletId = UUID.randomUUID();
-        var request = new DepositRequest(new BigDecimal("100.00"), "EUR", "Ref");
+        var request = new DepositRequest(new BigDecimal("100.00"), EUR.name(), "Ref");
         var ledgerEntry = LedgerEntry.credit(
                 new TenantId(tenantId), new WalletId(walletId),
                 new BigDecimal("100.00"), EUR, "Ref"
@@ -150,8 +151,8 @@ class WalletControllerTest {
                 .ledgerEntryId(ledgerEntry.getId().toString())
                 .walletId(walletId.toString())
                 .amount(new BigDecimal("100.00"))
-                .currency("EUR")
-                .entryType("CREDIT")
+                .currency(EUR.name())
+                .entryType(LedgerEntryType.CREDIT.name())
                 .reference("Ref")
                 .createdAt(Instant.now())
                 .build();
@@ -182,7 +183,7 @@ class WalletControllerTest {
         var expectedResponse = BalanceResponse.builder()
                 .walletId(wallet.getId().toString())
                 .tenantId(tenantId.toString())
-                .currency("EUR")
+                .currency(EUR.name())
                 .balance(new BigDecimal("500.00"))
                 .build();
 

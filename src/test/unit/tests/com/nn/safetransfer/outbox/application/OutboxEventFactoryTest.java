@@ -62,7 +62,7 @@ class OutboxEventFactoryTest {
                 () -> assertThat(payload.sourceWalletId()).isEqualTo(sourceWalletId.value()),
                 () -> assertThat(payload.destinationWalletId()).isEqualTo(destinationWalletId.value()),
                 () -> assertThat(payload.amount()).isEqualByComparingTo("50.00"),
-                () -> assertThat(payload.currency()).isEqualTo("EUR"),
+                () -> assertThat(payload.currency()).isEqualTo(EUR.name()),
                 () -> assertThat(payload.reference()).isEqualTo("Payment"),
                 () -> assertThat(payload.idempotencyKey()).isEqualTo("idem-123")
         );

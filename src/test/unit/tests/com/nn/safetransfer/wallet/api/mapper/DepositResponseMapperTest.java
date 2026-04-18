@@ -35,7 +35,7 @@ class DepositResponseMapperTest {
                 () -> assertThat(response.ledgerEntryId()).isEqualTo(entry.getId().value().toString()),
                 () -> assertThat(response.walletId()).isEqualTo(walletId.value().toString()),
                 () -> assertThat(response.amount()).isEqualByComparingTo(amount),
-                () -> assertThat(response.currency()).isEqualTo("EUR"),
+                () -> assertThat(response.currency()).isEqualTo(entry.getCurrency().name()),
                 () -> assertThat(response.entryType()).isEqualTo("CREDIT"),
                 () -> assertThat(response.reference()).isEqualTo("Deposit ref"),
                 () -> assertThat(response.createdAt()).isNotNull()

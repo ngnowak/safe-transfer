@@ -147,8 +147,8 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(transferJpa.getSourceWalletId()).isEqualTo(UUID.fromString(sourceWalletId)),
                 () -> assertThat(transferJpa.getDestinationWalletId()).isEqualTo(UUID.fromString(destinationWalletId)),
                 () -> assertThat(transferJpa.getAmount()).isEqualByComparingTo(TWO_HUNDRED_FIFTY),
-                () -> assertThat(transferJpa.getCurrency()).isEqualTo("EUR"),
-                () -> assertThat(transferJpa.getStatus()).isEqualTo("COMPLETED")
+                () -> assertThat(transferJpa.getCurrency()).isEqualTo(EUR.name()),
+                () -> assertThat(transferJpa.getStatus()).isEqualTo(COMPLETED.name())
         );
 
         // verify ledger entries: 1 deposit + 1 debit + 1 credit = 3
@@ -179,15 +179,15 @@ class TransferControllerIntegrationTest {
     void shouldPublishTransferOutboxEventAndCreateAuditEvent() throws Exception {
         // given
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_FIFTY)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Async audit")
                 .build();
 
@@ -235,16 +235,16 @@ class TransferControllerIntegrationTest {
     void shouldReturnSameTransferForIdempotentRequest() throws Exception {
         // given
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, EUR.name());
 
         var idempotencyKey = randomUUID().toString();
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Idempotent transfer")
                 .build();
 
@@ -290,24 +290,24 @@ class TransferControllerIntegrationTest {
     void shouldReturnConflictWhenIdempotencyKeyIsReusedWithDifferentRequestBody() throws Exception {
         // given
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var firstDestinationWalletId = createWallet(tenantId, "EUR");
-        var secondDestinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var firstDestinationWalletId = createWallet(tenantId, EUR.name());
+        var secondDestinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, EUR.name());
 
         var idempotencyKey = randomUUID().toString();
         var firstRequest = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(firstDestinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Original idempotent transfer")
                 .build();
         var differentRequest = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(secondDestinationWalletId))
                 .amount(TWO_HUNDRED_FIFTY)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Different idempotent transfer")
                 .build();
 
@@ -354,26 +354,26 @@ class TransferControllerIntegrationTest {
         var secondTenantId = randomUUID();
         var sharedIdempotencyKey = randomUUID().toString();
 
-        var firstSourceWalletId = createWallet(firstTenantId, "EUR");
-        var firstDestinationWalletId = createWallet(firstTenantId, "EUR");
-        deposit(firstTenantId, firstSourceWalletId, ONE_THOUSAND, "EUR");
+        var firstSourceWalletId = createWallet(firstTenantId, EUR.name());
+        var firstDestinationWalletId = createWallet(firstTenantId, EUR.name());
+        deposit(firstTenantId, firstSourceWalletId, ONE_THOUSAND, EUR.name());
 
-        var secondSourceWalletId = createWallet(secondTenantId, "EUR");
-        var secondDestinationWalletId = createWallet(secondTenantId, "EUR");
-        deposit(secondTenantId, secondSourceWalletId, ONE_THOUSAND, "EUR");
+        var secondSourceWalletId = createWallet(secondTenantId, EUR.name());
+        var secondDestinationWalletId = createWallet(secondTenantId, EUR.name());
+        deposit(secondTenantId, secondSourceWalletId, ONE_THOUSAND, EUR.name());
 
         var firstRequest = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(firstSourceWalletId))
                 .destinationWalletId(UUID.fromString(firstDestinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("First tenant transfer")
                 .build();
         var secondRequest = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(secondSourceWalletId))
                 .destinationWalletId(UUID.fromString(secondDestinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Second tenant transfer")
                 .build();
 
@@ -407,15 +407,15 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldGetTransferById() throws Exception {
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_TWENTY)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Get transfer")
                 .build();
 
@@ -467,13 +467,13 @@ class TransferControllerIntegrationTest {
     void shouldReturnBadRequestWhenTransferringToSameWallet() throws Exception {
         // given
         var tenantId = randomUUID();
-        var walletId = createWallet(tenantId, "EUR");
+        var walletId = createWallet(tenantId, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(walletId))
                 .destinationWalletId(UUID.fromString(walletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .build();
 
         // when
@@ -497,15 +497,15 @@ class TransferControllerIntegrationTest {
     void shouldReturnConflictWhenInsufficientFunds() throws Exception {
         // given
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, FIFTY, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, FIFTY, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .build();
 
         // when
@@ -562,9 +562,9 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldRecordSuccessTransferMetrics() throws Exception {
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, ONE_THOUSAND, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, ONE_THOUSAND, EUR.name());
 
         var counterBefore = counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS);
         var timerBefore = timerCount(MetricName.TRANSFER_DURATION, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS);
@@ -573,7 +573,7 @@ class TransferControllerIntegrationTest {
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Metrics success")
                 .build();
 
@@ -592,9 +592,9 @@ class TransferControllerIntegrationTest {
     @Test
     void shouldRecordFailureTransferMetrics() throws Exception {
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, FIFTY, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, FIFTY, EUR.name());
 
         var counterBefore = counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS);
         var timerBefore = timerCount(MetricName.TRANSFER_DURATION, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS);
@@ -603,7 +603,7 @@ class TransferControllerIntegrationTest {
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Metrics failure")
                 .build();
 
@@ -623,13 +623,13 @@ class TransferControllerIntegrationTest {
     void shouldReturnNotFoundWhenSourceWalletDoesNotExist() throws Exception {
         // given
         var tenantId = randomUUID();
-        var destinationWalletId = createWallet(tenantId, "EUR");
+        var destinationWalletId = createWallet(tenantId, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(randomUUID())
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .build();
 
         // when
@@ -653,14 +653,14 @@ class TransferControllerIntegrationTest {
     void shouldReturnNotFoundWhenDestinationWalletDoesNotExist() throws Exception {
         // given
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(randomUUID())
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .build();
 
         // when
@@ -684,9 +684,9 @@ class TransferControllerIntegrationTest {
     void shouldReturnBadRequestWhenCurrencyDoesNotMatchSourceWallet() throws Exception {
         // given
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
-        var destinationWalletId = createWallet(tenantId, "EUR");
-        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
@@ -716,15 +716,15 @@ class TransferControllerIntegrationTest {
     void shouldReturnBadRequestWhenDestinationWalletHasDifferentCurrency() throws Exception {
         // given
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "EUR");
+        var sourceWalletId = createWallet(tenantId, EUR.name());
         var destinationWalletId = createWallet(tenantId, "PLN");
-        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, "EUR");
+        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .build();
 
         // when
@@ -752,7 +752,7 @@ class TransferControllerIntegrationTest {
                 .sourceWalletId(randomUUID())
                 .destinationWalletId(randomUUID())
                 .amount(ZERO)
-                .currency("EUR")
+                .currency(EUR.name())
                 .build();
 
         // when
@@ -809,13 +809,13 @@ class TransferControllerIntegrationTest {
         var otherTenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, EUR.name());
         var destinationWalletId = createWallet(tenantId, EUR.name());
-        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, "EUR");
+        deposit(tenantId, sourceWalletId, FIVE_HUNDRED, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
-                .currency("EUR")
+                .currency(EUR.name())
                 .build();
 
         // when / then - use different tenant

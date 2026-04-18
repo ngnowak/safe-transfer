@@ -5,6 +5,7 @@ import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEvent
 import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
 import com.nn.safetransfer.outbox.application.OutboxPublisher;
+import com.nn.safetransfer.outbox.domain.OutboxStatus;
 import com.nn.safetransfer.outbox.infrastructure.persistence.SpringDataOutboxEventRepository;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.application.TransferError;
@@ -15,7 +16,6 @@ import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.application.CreateWalletCommand;
 import com.nn.safetransfer.wallet.application.DepositService;
 import com.nn.safetransfer.wallet.application.WalletApplicationService;
-import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
@@ -34,6 +34,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static com.nn.safetransfer.TestAmounts.FIVE_HUNDRED;
+import static com.nn.safetransfer.TestAmounts.ONE_HUNDRED;
+import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @IntegrationTest
@@ -85,76 +88,77 @@ class OutboxPublisherConcurrencyIntegrationTest {
         var tenantId = TenantId.create();
         var sourceWallet = createWalletInTx(tenantId);
         var destinationWallet = createWalletInTx(tenantId);
-        depositInTx(tenantId, sourceWallet.getId(), "500.00");
-        createTransferInTx(tenantId, sourceWallet.getId(), destinationWallet.getId(), "100.00");
+        depositInTx(tenantId, sourceWallet.getId(), FIVE_HUNDRED);
+        createTransferInTx(tenantId, sourceWallet.getId(), destinationWallet.getId(), ONE_HUNDRED);
 
         assertThat(outboxEventRepository.findAll()).hasSizeGreaterThanOrEqualTo(1);
         assertThat(auditEventRepository.findAll()).isEmpty();
 
         var readyLatch = new CountDownLatch(2);
         var startLatch = new CountDownLatch(1);
-        var executor = Executors.newFixedThreadPool(2);
+        try (var executor = Executors.newFixedThreadPool(2)) {
 
-        // when
-        var futures = new ArrayList<Future<Integer>>();
-        for (int i = 0; i < 2; i++) {
-            futures.add(executor.submit(() -> {
-                readyLatch.countDown();
-                startLatch.await();
-                return transactionTemplate.execute(status -> outboxPublisher.publishPending(10));
-            }));
+            // when
+            var futures = new ArrayList<Future<Integer>>();
+            for (int i = 0; i < 2; i++) {
+                futures.add(executor.submit(() -> {
+                    readyLatch.countDown();
+                    startLatch.await();
+                    return transactionTemplate.execute(status -> outboxPublisher.publishPending(10));
+                }));
+            }
+
+            readyLatch.await();
+            startLatch.countDown();
+
+            var firstResult = futures.get(0).get();
+            var secondResult = futures.get(1).get();
+            executor.shutdown();
+
+            // then
+            assertThat(firstResult + secondResult).isGreaterThanOrEqualTo(1);
+            assertThat(auditEventRepository.findAll()).hasSizeGreaterThanOrEqualTo(1);
+            assertThat(outboxEventRepository.findAll()).hasSizeGreaterThanOrEqualTo(1);
+
+            var outboxEvent = outboxEventRepository.findAll().getFirst();
+            assertThat(outboxEvent.getStatus()).isEqualTo(OutboxStatus.PUBLISHED.name());
+            assertThat(outboxEvent.getRetryCount()).isZero();
+            assertThat(outboxEvent.getPublishedAt()).isNotNull();
+
+            var auditEvent = auditEventRepository.findAll().getFirst();
+            assertThat(auditEvent.getSourceEventId()).isEqualTo(outboxEvent.getId());
         }
-
-        readyLatch.await();
-        startLatch.countDown();
-
-        var firstResult = futures.get(0).get();
-        var secondResult = futures.get(1).get();
-        executor.shutdown();
-
-        // then
-        assertThat(firstResult + secondResult).isGreaterThanOrEqualTo(1);
-        assertThat(auditEventRepository.findAll()).hasSizeGreaterThanOrEqualTo(1);
-        assertThat(outboxEventRepository.findAll()).hasSizeGreaterThanOrEqualTo(1);
-
-        var outboxEvent = outboxEventRepository.findAll().getFirst();
-        assertThat(outboxEvent.getStatus()).isEqualTo("PUBLISHED");
-        assertThat(outboxEvent.getRetryCount()).isZero();
-        assertThat(outboxEvent.getPublishedAt()).isNotNull();
-
-        var auditEvent = auditEventRepository.findAll().getFirst();
-        assertThat(auditEvent.getSourceEventId()).isEqualTo(outboxEvent.getId());
     }
 
     private Wallet createWalletInTx(TenantId tenantId) {
-        return transactionTemplate.execute(status ->
+        return transactionTemplate.execute(_ ->
                 walletApplicationService.handle(
-                        new CreateWalletCommand(tenantId, CustomerId.create(), CurrencyCode.EUR)
+                        new CreateWalletCommand(tenantId, CustomerId.create(), EUR)
                 ).getValue().orElseThrow(() -> new IllegalArgumentException("No wallet"))
         );
     }
 
-    private void depositInTx(TenantId tenantId, WalletId walletId, String amount) {
-        transactionTemplate.execute(status -> {
+    private void depositInTx(TenantId tenantId, WalletId walletId, BigDecimal amount) {
+        transactionTemplate.execute(_ -> {
             depositService.deposit(
                     tenantId,
                     walletId,
-                    new DepositRequest(new BigDecimal(amount), "EUR", "Setup deposit")
+                    new DepositRequest(amount, EUR.name(), "Setup deposit")
             );
             return null;
         });
     }
 
-    private void createTransferInTx(TenantId tenantId, WalletId sourceWalletId, WalletId destinationWalletId, String amount) {
-        var result = transactionTemplate.execute(status ->
+    private void createTransferInTx(TenantId tenantId, WalletId sourceWalletId, WalletId destinationWalletId, BigDecimal amount) {
+        var result = transactionTemplate.execute(_ ->
                 transferService.transfer(
                         tenantId,
                         UUID.randomUUID().toString(),
                         CreateTransferRequest.builder()
                                 .sourceWalletId(sourceWalletId.value())
                                 .destinationWalletId(destinationWalletId.value())
-                                .amount(new BigDecimal(amount))
-                                .currency("EUR")
+                                .amount(amount)
+                                .currency(EUR.name())
                                 .reference("Concurrent publisher test")
                                 .build()
                 )

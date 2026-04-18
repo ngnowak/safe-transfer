@@ -2,6 +2,8 @@ package com.nn.safetransfer.audit.infrastructure.persistence;
 
 import com.nn.safetransfer.audit.domain.AuditEvent;
 import com.nn.safetransfer.audit.infrastructure.mapper.AuditEventMapper;
+import com.nn.safetransfer.outbox.domain.EventType;
+import com.nn.safetransfer.outbox.domain.OutboxAggregateType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -35,9 +37,9 @@ class AuditEventRepositoryJpaAdapterTest {
                 .id(UUID.randomUUID())
                 .sourceEventId(UUID.randomUUID())
                 .tenantId(UUID.randomUUID())
-                .aggregateType("TRANSFER")
+                .aggregateType(OutboxAggregateType.TRANSFER.name())
                 .aggregateId(UUID.randomUUID())
-                .eventType("TRANSFER_COMPLETED")
+                .eventType(EventType.TRANSFER_COMPLETED.name())
                 .payload("{\"ok\":true}")
                 .recordedAt(Instant.parse("2026-04-02T10:15:30Z"))
                 .correlationId("corr")

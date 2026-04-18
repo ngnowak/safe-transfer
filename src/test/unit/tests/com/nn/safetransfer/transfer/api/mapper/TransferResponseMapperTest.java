@@ -1,6 +1,7 @@
 package com.nn.safetransfer.transfer.api.mapper;
 
 import com.nn.safetransfer.transfer.domain.Transfer;
+import com.nn.safetransfer.transfer.domain.TransferStatus;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import org.junit.jupiter.api.Test;
@@ -37,9 +38,9 @@ class TransferResponseMapperTest {
                 () -> assertThat(response.sourceWalletId()).isEqualTo(sourceWalletId.value().toString()),
                 () -> assertThat(response.destinationWalletId()).isEqualTo(destinationWalletId.value().toString()),
                 () -> assertThat(response.amount()).isEqualByComparingTo(amount),
-                () -> assertThat(response.currency()).isEqualTo("USD"),
-                () -> assertThat(response.status()).isEqualTo("COMPLETED"),
-                () -> assertThat(response.reference()).isEqualTo("Ref-123"),
+                () -> assertThat(response.currency()).isEqualTo(USD.name()),
+                () -> assertThat(response.status()).isEqualTo(TransferStatus.COMPLETED.name()),
+                () -> assertThat(response.reference()).isEqualTo(transfer.getReference()),
                 () -> assertThat(response.createdAt()).isNotNull()
         );
     }

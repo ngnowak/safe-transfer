@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TransferRiskPolicyTest {
@@ -55,7 +56,7 @@ class TransferRiskPolicyTest {
                 .sourceWalletId(UUID.randomUUID())
                 .destinationWalletId(UUID.randomUUID())
                 .amount(new BigDecimal(amount))
-                .currency("EUR")
+                .currency(EUR.name())
                 .reference("Risk policy test")
                 .build();
     }

@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY;
+
 @Slf4j
 @RequiredArgsConstructor
 @RestController
@@ -31,7 +33,7 @@ public class TransferController implements TransferApi {
     @Override
     public ResponseEntity<TransferResponse> createTransfer(
             @PathVariable UUID tenantId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader(IDEMPOTENCY_KEY) String idempotencyKey,
             @Valid @RequestBody CreateTransferRequest request
     ) {
         log.debug("Transfer request: tenantId={}, idempotencyKey={}, source={}, destination={}", tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId());
