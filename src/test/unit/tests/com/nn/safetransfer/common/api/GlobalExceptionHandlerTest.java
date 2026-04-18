@@ -54,6 +54,8 @@ class GlobalExceptionHandlerTest {
         var walletId = WalletId.create();
         var tenantId = TenantId.create();
         var exception = new WalletNotFoundException(walletId, tenantId);
+        var expectedErrorMessage = "Wallet with id '%s' was not found for tenant '%s'"
+                .formatted(walletId.value(), tenantId.value());
 
         // when
         var response = handler.handleWalletNotFound(exception);
@@ -63,7 +65,7 @@ class GlobalExceptionHandlerTest {
                 () -> assertThat(response.getStatusCode()).isEqualTo(NOT_FOUND),
                 () -> assertThat(response.getBody()).isNotNull(),
                 () -> assertThat(response.getBody().errorId()).isNotNull(),
-                () -> assertThat(response.getBody().errorMessage()).contains(walletId.value().toString()),
+                () -> assertThat(response.getBody().errorMessage()).isEqualTo(expectedErrorMessage),
                 () -> assertThat(response.getBody().errors()).isNull()
         );
     }
@@ -92,6 +94,8 @@ class GlobalExceptionHandlerTest {
         var walletCurrency = CurrencyCode.EUR;
         var requestCurrency = CurrencyCode.USD;
         var exception = new WalletCurrencyMismatchException(walletCurrency, requestCurrency);
+        var expectedErrorMessage = "Wallet currency is '%s' but request currency is '%s'"
+                .formatted(walletCurrency, requestCurrency);
 
         // when
         var response = handler.handleWalletCurrencyMismatch(exception);
@@ -101,7 +105,7 @@ class GlobalExceptionHandlerTest {
                 () -> assertThat(response.getStatusCode()).isEqualTo(BAD_REQUEST),
                 () -> assertThat(response.getBody()).isNotNull(),
                 () -> assertThat(response.getBody().errorId()).isNotNull(),
-                () -> assertThat(response.getBody().errorMessage()).contains(walletCurrency.name()).contains(requestCurrency.name()),
+                () -> assertThat(response.getBody().errorMessage()).isEqualTo(expectedErrorMessage),
                 () -> assertThat(response.getBody().errors()).isNull()
         );
     }

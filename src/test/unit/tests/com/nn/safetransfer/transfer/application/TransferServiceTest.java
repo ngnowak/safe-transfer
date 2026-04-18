@@ -280,7 +280,7 @@ class TransferServiceTest {
         assertAll(
                 () -> assertThat(result.isFailure()).isTrue(),
                 () -> assertThat(result.getError()).containsInstanceOf(TransferError.WalletNotActive.class),
-                () -> assertThat(result.getError().orElseThrow().getMessage()).contains("Source wallet must be ACTIVE")
+                () -> assertThat(result.getError().orElseThrow().getMessage()).isEqualTo("Source wallet must be ACTIVE")
         );
     }
 
@@ -345,7 +345,9 @@ class TransferServiceTest {
         assertAll(
                 () -> assertThat(result.isFailure()).isTrue(),
                 () -> assertThat(result.getError()).containsInstanceOf(TransferError.InsufficientFunds.class),
-                () -> assertThat(result.getError().orElseThrow().getMessage()).contains("100").contains("500")
+                () -> assertThat(result.getError().orElseThrow().getMessage())
+                        .isEqualTo("Wallet '%s' has insufficient funds. Available: 100.00, requested: 500.00"
+                                .formatted(sourceWalletId.value()))
         );
     }
 
@@ -382,7 +384,8 @@ class TransferServiceTest {
         assertAll(
                 () -> assertThat(result.isFailure()).isTrue(),
                 () -> assertThat(result.getError()).containsInstanceOf(TransferError.TransferLimitExceeded.class),
-                () -> assertThat(result.getError().orElseThrow().getMessage()).contains("1000.00").contains("500.00")
+                () -> assertThat(result.getError().orElseThrow().getMessage())
+                        .isEqualTo("Transfer amount 1000.00 exceeds configured single transfer limit 500.00")
         );
         verify(ledgerEntryRepository, never()).calculateBalance(any(), any());
         verify(transferRepository, never()).save(any());

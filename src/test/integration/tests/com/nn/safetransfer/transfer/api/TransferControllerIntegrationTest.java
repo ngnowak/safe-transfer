@@ -40,10 +40,13 @@ import static com.nn.safetransfer.TestAmounts.THREE_HUNDRED;
 import static com.nn.safetransfer.TestAmounts.TWENTY_THOUSAND;
 import static com.nn.safetransfer.TestAmounts.TWO_HUNDRED_FIFTY;
 import static com.nn.safetransfer.TestAmounts.ZERO;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY;
 import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
 import static com.nn.safetransfer.outbox.domain.OutboxAggregateType.TRANSFER;
 import static com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
+import static com.nn.safetransfer.wallet.domain.CurrencyCode.PLN;
+import static com.nn.safetransfer.wallet.domain.CurrencyCode.USD;
 import static java.util.UUID.randomUUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -59,7 +62,6 @@ class TransferControllerIntegrationTest {
     private static final String DEPOSITS_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/deposits";
     private static final String TRANSFERS_PATH = "/api/v1/tenants/{tenantId}/transfers";
     private static final String TRANSFER_PATH = "/api/v1/tenants/{tenantId}/transfers/{transferId}";
-    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
     @Autowired
     private MockMvc mockMvc;
@@ -114,7 +116,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header(IDEMPOTENCY_KEY_HEADER, randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -130,10 +132,10 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
                 () -> assertThat(response.sourceWalletId()).isEqualTo(sourceWalletId),
                 () -> assertThat(response.destinationWalletId()).isEqualTo(destinationWalletId),
-                () -> assertThat(response.amount()).isEqualByComparingTo(TWO_HUNDRED_FIFTY),
-                () -> assertThat(response.currency()).isEqualTo(EUR.name()),
+                () -> assertThat(response.amount()).isEqualByComparingTo(request.amount()),
+                () -> assertThat(response.currency()).isEqualTo(request.currency()),
                 () -> assertThat(response.status()).isEqualTo(COMPLETED.name()),
-                () -> assertThat(response.reference()).isEqualTo("Test transfer"),
+                () -> assertThat(response.reference()).isEqualTo(request.reference()),
                 () -> assertThat(response.createdAt()).isNotNull()
         );
 
@@ -192,7 +194,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         var transferResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -250,7 +252,7 @@ class TransferControllerIntegrationTest {
 
         // when - first request
         var firstResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", idempotencyKey)
+                        .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -258,7 +260,7 @@ class TransferControllerIntegrationTest {
 
         // when - second request with same idempotency key
         var secondResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", idempotencyKey)
+                        .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -312,7 +314,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         var firstResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+                        .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(firstRequest)))
                 .andExpect(status().isCreated())
@@ -320,7 +322,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var secondResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
+                        .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(differentRequest)))
                 .andExpect(status().isConflict())
@@ -329,9 +331,10 @@ class TransferControllerIntegrationTest {
         // then
         var firstResponse = objectMapper.readValue(firstResult.getResponse().getContentAsString(), TransferResponse.class);
         var error = readError(secondResult.getResponse().getContentAsString());
+        var expectedErrorMsg = "Idempotency key '%s' was already used with a different transfer request".formatted(idempotencyKey);
 
         assertAll(
-                () -> assertThat(error.errorMessage()).contains("Idempotency key").contains("different transfer request"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(transferRepository.findAll()).hasSize(1),
                 () -> assertThat(ledgerEntryRepository.findAll()).hasSize(3),
                 () -> assertThat(outboxEventRepository.findAll()).hasSize(1)
@@ -379,13 +382,13 @@ class TransferControllerIntegrationTest {
 
         // when
         var firstResult = mockMvc.perform(post(TRANSFERS_PATH, firstTenantId)
-                        .header(IDEMPOTENCY_KEY_HEADER, sharedIdempotencyKey)
+                        .header(IDEMPOTENCY_KEY, sharedIdempotencyKey)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(firstRequest)))
                 .andExpect(status().isCreated())
                 .andReturn();
         var secondResult = mockMvc.perform(post(TRANSFERS_PATH, secondTenantId)
-                        .header(IDEMPOTENCY_KEY_HEADER, sharedIdempotencyKey)
+                        .header(IDEMPOTENCY_KEY, sharedIdempotencyKey)
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(secondRequest)))
                 .andExpect(status().isCreated())
@@ -420,7 +423,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         var createResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -439,10 +442,10 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(response.tenantId()).isEqualTo(tenantId.toString()),
                 () -> assertThat(response.sourceWalletId()).isEqualTo(sourceWalletId),
                 () -> assertThat(response.destinationWalletId()).isEqualTo(destinationWalletId),
-                () -> assertThat(response.amount()).isEqualByComparingTo(ONE_TWENTY),
-                () -> assertThat(response.currency()).isEqualTo(EUR.name()),
+                () -> assertThat(response.amount()).isEqualByComparingTo(request.amount()),
+                () -> assertThat(response.currency()).isEqualTo(request.currency()),
                 () -> assertThat(response.status()).isEqualTo(COMPLETED.name()),
-                () -> assertThat(response.reference()).isEqualTo("Get transfer")
+                () -> assertThat(response.reference()).isEqualTo(request.reference())
         );
     }
 
@@ -456,9 +459,11 @@ class TransferControllerIntegrationTest {
                 .andReturn();
 
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Transfer with id '%s' was not found for tenant '%s'"
+                .formatted(transferId, tenantId);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("Transfer with id"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -478,7 +483,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -510,7 +515,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
@@ -518,9 +523,11 @@ class TransferControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet '%s' has insufficient funds. Available: %s, requested: %s"
+                .formatted(sourceWalletId, FIFTY, ONE_HUNDRED);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("insufficient funds"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -543,7 +550,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header(IDEMPOTENCY_KEY_HEADER, randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
@@ -551,8 +558,10 @@ class TransferControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Transfer amount %s exceeds configured single transfer limit 10000.0"
+                .formatted(TEN_THOUSAND_01);
         assertAll(
-                () -> assertThat(error.errorMessage()).contains("exceeds configured single transfer limit"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(transferRepository.findAll()).isEmpty(),
                 () -> assertThat(outboxEventRepository.findAll()).isEmpty(),
                 () -> assertThat(ledgerEntryRepository.findAll()).hasSize(1)
@@ -578,7 +587,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
@@ -608,7 +617,7 @@ class TransferControllerIntegrationTest {
                 .build();
 
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
@@ -623,10 +632,11 @@ class TransferControllerIntegrationTest {
     void shouldReturnNotFoundWhenSourceWalletDoesNotExist() throws Exception {
         // given
         var tenantId = randomUUID();
+        var missingSourceWalletId = randomUUID();
         var destinationWalletId = createWallet(tenantId, EUR.name());
 
         var request = CreateTransferRequest.builder()
-                .sourceWalletId(randomUUID())
+                .sourceWalletId(missingSourceWalletId)
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(ONE_HUNDRED)
                 .currency(EUR.name())
@@ -634,7 +644,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
@@ -642,9 +652,11 @@ class TransferControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet with id '%s' was not found for tenant '%s'"
+                .formatted(missingSourceWalletId, tenantId);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("was not found"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -654,18 +666,19 @@ class TransferControllerIntegrationTest {
         // given
         var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, EUR.name());
+        var missingDestinationWalletId = randomUUID();
         deposit(tenantId, sourceWalletId, FIVE_HUNDRED, EUR.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
-                .destinationWalletId(randomUUID())
+                .destinationWalletId(missingDestinationWalletId)
                 .amount(ONE_HUNDRED)
                 .currency(EUR.name())
                 .build();
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
@@ -673,9 +686,11 @@ class TransferControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet with id '%s' was not found for tenant '%s'"
+                .formatted(missingDestinationWalletId, tenantId);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("was not found"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -697,7 +712,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -705,9 +720,11 @@ class TransferControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet currency is '%s' but request currency is '%s'"
+                .formatted(EUR, USD);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("Wallet currency is"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -717,7 +734,7 @@ class TransferControllerIntegrationTest {
         // given
         var tenantId = randomUUID();
         var sourceWalletId = createWallet(tenantId, EUR.name());
-        var destinationWalletId = createWallet(tenantId, "PLN");
+        var destinationWalletId = createWallet(tenantId, PLN.name());
         deposit(tenantId, sourceWalletId, FIVE_HUNDRED, EUR.name());
 
         var request = CreateTransferRequest.builder()
@@ -729,7 +746,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -737,9 +754,11 @@ class TransferControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet currency is '%s' but request currency is '%s'"
+                .formatted(PLN, EUR);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("Wallet currency is"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -757,7 +776,7 @@ class TransferControllerIntegrationTest {
 
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -765,9 +784,11 @@ class TransferControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = """
+                Validation failed for argument [2] in public org.springframework.http.ResponseEntity<com.nn.safetransfer.transfer.api.dto.TransferResponse> com.nn.safetransfer.transfer.api.TransferController.createTransfer(java.util.UUID,java.lang.String,com.nn.safetransfer.transfer.api.dto.CreateTransferRequest): [Field error in object 'createTransferRequest' on field 'amount': rejected value [0.00]; codes [DecimalMin.createTransferRequest.amount,DecimalMin.amount,DecimalMin.java.math.BigDecimal,DecimalMin]; arguments [org.springframework.context.support.DefaultMessageSourceResolvable: codes [createTransferRequest.amount,amount]; arguments []; default message [amount],true,0.01]; default message [must be greater than or equal to 0.01]]\s""";
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).isNotBlank(),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).contains("amount: must be greater than or equal to 0.01")
         );
     }
@@ -776,21 +797,21 @@ class TransferControllerIntegrationTest {
     void shouldTransferEntireBalance() throws Exception {
         // given
         var tenantId = randomUUID();
-        var sourceWalletId = createWallet(tenantId, "PLN");
-        var destinationWalletId = createWallet(tenantId, "PLN");
-        deposit(tenantId, sourceWalletId, THREE_HUNDRED, "PLN");
+        var sourceWalletId = createWallet(tenantId, PLN.name());
+        var destinationWalletId = createWallet(tenantId, PLN.name());
+        deposit(tenantId, sourceWalletId, THREE_HUNDRED, PLN.name());
 
         var request = CreateTransferRequest.builder()
                 .sourceWalletId(UUID.fromString(sourceWalletId))
                 .destinationWalletId(UUID.fromString(destinationWalletId))
                 .amount(THREE_HUNDRED)
-                .currency("PLN")
+                .currency(PLN.name())
                 .reference("Full transfer")
                 .build();
 
         // when
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
@@ -820,7 +841,7 @@ class TransferControllerIntegrationTest {
 
         // when / then - use different tenant
         mockMvc.perform(post(TRANSFERS_PATH, otherTenantId)
-                        .header("Idempotency-Key", randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());

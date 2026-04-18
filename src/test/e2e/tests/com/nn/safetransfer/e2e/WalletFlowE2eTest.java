@@ -58,18 +58,17 @@ class WalletFlowE2eTest {
         WALLET_API_CLIENT.createWallet(tenantId, customerId, CurrencyCode.EUR.name());
         var error = WALLET_API_CLIENT.createWalletError(tenantId, customerId, CurrencyCode.EUR.name());
 
-        assertThat(error.errorMessage()).contains("Wallet already exists");
-        assertThat(error.errorMessage()).contains(tenantId.toString());
-        assertThat(error.errorMessage()).contains(customerId.toString());
-        assertThat(error.errorMessage()).contains(CurrencyCode.EUR.name());
+        assertThat(error.errorMessage()).isEqualTo(
+                "Wallet already exists for tenant %s, customer %s, and currency %s"
+                        .formatted(tenantId, customerId, CurrencyCode.EUR)
+        );
     }
 
     @Test
     void shouldRejectInvalidWalletCurrency() throws Exception {
         var error = WALLET_API_CLIENT.createWalletError(UUID.randomUUID(), UUID.randomUUID(), "INVALID");
 
-        assertThat(error.errorMessage()).contains("No currency code for code");
-        assertThat(error.errorMessage()).contains("INVALID");
+        assertThat(error.errorMessage()).isEqualTo("No currency code for code: `INVALID`");
     }
 
     @Test
@@ -97,7 +96,10 @@ class WalletFlowE2eTest {
                 UUID.randomUUID().toString()
         );
 
-        assertThat(error.errorMessage()).contains("insufficient funds");
+        assertThat(error.errorMessage()).isEqualTo(
+                "Wallet '%s' has insufficient funds. Available: %s, requested: %s"
+                        .formatted(sourceWallet.walletId(), ONE_HUNDRED, ONE_THOUSAND)
+        );
         assertBalance(tenantId, sourceWallet.walletId(), ONE_HUNDRED);
         assertBalance(tenantId, destinationWallet.walletId(), BigDecimal.ZERO);
     }
@@ -116,7 +118,7 @@ class WalletFlowE2eTest {
         );
 
         assertThat(error.errors())
-                .anySatisfy(message -> assertThat(message).contains("amount").contains("0.01"));
+                .anySatisfy(message -> assertThat(message).isEqualTo("amount: must be greater than or equal to 0.01"));
         assertBalance(tenantId, wallet.walletId(), BigDecimal.ZERO);
     }
 
@@ -133,7 +135,10 @@ class WalletFlowE2eTest {
                 "e2e currency mismatch deposit"
         );
 
-        assertThat(error.errorMessage()).contains("Wallet currency is");
+        assertThat(error.errorMessage()).isEqualTo(
+                "Wallet currency is '%s' but request currency is '%s'"
+                        .formatted(CurrencyCode.EUR, CurrencyCode.USD)
+        );
         assertBalance(tenantId, wallet.walletId(), BigDecimal.ZERO);
     }
 
@@ -153,7 +158,10 @@ class WalletFlowE2eTest {
 
         var error = WALLET_API_CLIENT.getWalletNotFound(otherTenantId, UUID.fromString(wallet.walletId()));
 
-        assertThat(error.errorMessage()).contains("was not found");
+        assertThat(error.errorMessage()).isEqualTo(
+                "Wallet with id '%s' was not found for tenant '%s'"
+                        .formatted(wallet.walletId(), otherTenantId)
+        );
         var walletForOwningTenant = WALLET_API_CLIENT.getWallet(tenantId, UUID.fromString(wallet.walletId()));
         assertThat(walletForOwningTenant.walletId()).isEqualTo(wallet.walletId());
     }

@@ -9,9 +9,10 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY;
+
 public class TransferApiClient {
 
-    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
     private static final String TRANSFERS_PATH = "/api/v1/tenants/%s/transfers";
     private static final String TRANSFER_BY_ID_PATH = TRANSFERS_PATH + "/%s";
 
@@ -46,7 +47,7 @@ public class TransferApiClient {
         return httpClient.post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,
-                Map.of(IDEMPOTENCY_KEY_HEADER, idempotencyKey),
+                Map.of(IDEMPOTENCY_KEY, idempotencyKey),
                 expectedStatus.value(),
                 TransferResponse.class
         );
@@ -68,7 +69,7 @@ public class TransferApiClient {
         return httpClient.post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,
-                Map.of(IDEMPOTENCY_KEY_HEADER, idempotencyKey),
+                Map.of(IDEMPOTENCY_KEY, idempotencyKey),
                 HttpStatus.CONFLICT.value(),
                 ErrorDto.class
         );
@@ -82,7 +83,7 @@ public class TransferApiClient {
         return httpClient.post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,
-                Map.of(IDEMPOTENCY_KEY_HEADER, idempotencyKey),
+                Map.of(IDEMPOTENCY_KEY, idempotencyKey),
                 HttpStatus.BAD_REQUEST.value(),
                 ErrorDto.class
         );
@@ -96,7 +97,7 @@ public class TransferApiClient {
         return httpClient.post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,
-                Map.of(IDEMPOTENCY_KEY_HEADER, idempotencyKey),
+                Map.of(IDEMPOTENCY_KEY, idempotencyKey),
                 HttpStatus.NOT_FOUND.value(),
                 ErrorDto.class
         );

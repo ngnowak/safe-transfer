@@ -2,7 +2,8 @@
 
 `SafeTransfer` is a modular Spring Boot application for wallet management, deposits, internal transfers, and immutable ledger-based balance calculation.
 
-The project is intentionally built as a modular monolith. It uses PostgreSQL for persistence, Liquibase for schema management, and a transactional outbox with asynchronous audit processing for reliable side effects.
+The project is intentionally built as a modular monolith.
+It uses PostgreSQL for persistence, Liquibase for schema management, and a transactional outbox with asynchronous audit processing for reliable side effects.
 
 ## Features
 
@@ -228,6 +229,7 @@ Implemented async flow:
 - Kafka hardening: add schema versioning, a dead-letter topic, consumer retry/backoff policy, and explicit monitoring for consumer lag.
 - Operations: add an admin endpoint or internal UI for inspecting outbox rows, retrying `FATAL` rows, and viewing audit history.
 - Product features: wallet status transitions, daily cumulative limits, holds/reservations, refunds/reversals, and external payment provider integration.
+- Async fraud-check integration: create high-risk transfers as `PENDING_VERIFICATION`, emit a `fraud-check-requested` outbox event, process the provider decision asynchronously, then complete or reject the transfer idempotently.
 - API maturity: add versioned OpenAPI examples, pagination/filtering for wallet and transfer history, and consistent correlation IDs in responses.
 - Deployment readiness: add container image publishing, environment-specific configuration, Kubernetes manifests or Helm charts, and secret management.
 - Quality gates: add mutation testing, dependency/security scanning, contract tests, and performance tests for concurrent transfers.

@@ -89,7 +89,10 @@ class TransferFlowE2eTest {
                 randomUUID().toString()
         );
 
-        assertThat(failedTransfer.errorMessage()).contains("insufficient funds");
+        assertThat(failedTransfer.errorMessage()).isEqualTo(
+                "Wallet '%s' has insufficient funds. Available: %s, requested: %s"
+                        .formatted(sourceWallet.walletId(), SEVENTY_FIVE, ONE_THOUSAND)
+        );
 
         assertThat(metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS)))
                 .isEqualTo(successCounterBefore + 1.0d);
@@ -162,7 +165,10 @@ class TransferFlowE2eTest {
                 idempotencyKey
         );
 
-        assertThat(error.errorMessage()).contains("Idempotency key").contains("different transfer request");
+        assertThat(error.errorMessage()).isEqualTo(
+                "Idempotency key '%s' was already used with a different transfer request"
+                        .formatted(idempotencyKey)
+        );
         assertThat(TRANSFER_API_CLIENT.getTransfer(tenantId, UUID.fromString(firstTransfer.transferId())).destinationWalletId())
                 .isEqualTo(firstDestinationWallet.walletId());
         assertBalance(tenantId, sourceWallet.walletId(), SEVENTY_FIVE);
@@ -184,7 +190,10 @@ class TransferFlowE2eTest {
                 randomUUID().toString()
         );
 
-        assertThat(error.errorMessage()).contains("was not found");
+        assertThat(error.errorMessage()).isEqualTo(
+                "Wallet with id '%s' was not found for tenant '%s'"
+                        .formatted(sourceWallet.walletId(), otherTenantId)
+        );
         assertBalance(owningTenantId, sourceWallet.walletId(), ONE_HUNDRED);
         assertBalance(owningTenantId, destinationWallet.walletId(), BigDecimal.ZERO);
     }
@@ -230,7 +239,7 @@ class TransferFlowE2eTest {
         );
 
         assertThat(error.errors())
-                .anySatisfy(message -> assertThat(message).contains("amount").contains("0.01"));
+                .anySatisfy(message -> assertThat(message).isEqualTo("amount: must be greater than or equal to 0.01"));
         assertBalance(tenantId, sourceWallet.walletId(), ZERO);
         assertBalance(tenantId, destinationWallet.walletId(), ZERO);
     }

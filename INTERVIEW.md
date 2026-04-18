@@ -24,6 +24,7 @@ It is intentionally scoped as a modular monolith. The main goal is not CRUD, but
 - Kafka-backed audit flow when Kafka publishing is enabled.
 - Concurrency-aware transfer processing.
 - Configurable transfer risk policy.
+- Actuator health checks, Prometheus endpoint, and custom business metrics.
 - Unit, integration, and e2e test strategy.
 - OpenAPI documentation, Postman examples, and PlantUML architecture diagrams.
 
@@ -36,7 +37,8 @@ It is intentionally scoped as a modular monolith. The main goal is not CRUD, but
 5. Stale `PROCESSING` outbox rows can be reclaimed.
 6. Audit consumption is idempotent, so duplicate message delivery is safe.
 7. Transfer risk limits are externalized in `application.yaml`.
-8. Tests are split into unit, integration, and e2e layers.
+8. Transfer and outbox behavior is observable through custom Micrometer metrics.
+9. Tests are split into unit, integration, and e2e layers.
 
 ## Demo Flow
 
@@ -58,18 +60,58 @@ It is intentionally scoped as a modular monolith. The main goal is not CRUD, but
    http://localhost:8080/swagger-ui.html
    ```
 
-4. Show the happy path:
+4. Run the main demo script:
 
-   - create source wallet
-   - create destination wallet
-   - deposit `1000.00 EUR`
-   - transfer `100.00 EUR`
-   - check balances
-   - show outbox/audit behavior
+   ```powershell
+   .\scripts\demo-safe-transfer.ps1
+   ```
 
-5. Show interesting failures:
+   This shows:
 
-   - same idempotency key with a different request body returns `409 Conflict`
+   - health check
+   - source and destination wallet creation
+   - deposit
+   - ledger-derived balances
+   - idempotent transfer creation
+   - idempotent replay returning `200 OK`
+   - same idempotency key with a different body returning `409 Conflict`
+   - final balances
+   - transfer lookup
+
+5. Run the observability demo script:
+
+   ```powershell
+   .\scripts\demo-observability.ps1
+   ```
+
+   This shows:
+
+   - `/actuator/health`
+   - `/actuator/metrics`
+   - `/actuator/prometheus`
+   - transfer success metrics
+   - insufficient funds metrics
+   - idempotency conflict metrics
+   - outbox publish metrics
+
+6. Optional Kafka proof:
+
+   Start the app with Kafka publishing enabled:
+
+   ```powershell
+   $env:APPLICATION_KAFKA_PUBLISHING="true"
+   $env:SPRING_KAFKA_BOOTSTRAP_SERVERS="localhost:9092"
+   .\gradlew.bat bootRun
+   ```
+
+   Then run:
+
+   ```powershell
+   .\scripts\demo-kafka-local.ps1
+   ```
+
+7. Mention additional failures covered by tests:
+
    - transfer above configured risk limit returns `409 Conflict`
    - insufficient funds returns `409 Conflict`
 
@@ -132,7 +174,7 @@ Useful commands:
 .\gradlew.bat test
 .\gradlew.bat integrationTest
 .\gradlew.bat testAll
-.\gradlew.bat compileE2eJava
+.\gradlew.bat e2eTest
 ```
 
 ## Architecture Assets
@@ -163,7 +205,13 @@ Useful commands:
 - Grafana dashboard for transfer and outbox metrics.
 - OpenTelemetry tracing across REST, DB, outbox, Kafka, and audit.
 - Admin view for outbox/audit rows and manual retry of fatal events.
-- External payment provider or fraud-check integration.
+- Async fraud-check integration:
+  - create high-risk transfers as `PENDING_VERIFICATION`
+  - publish `fraud-check-requested` through the existing outbox
+  - call or simulate an external fraud provider outside the transfer transaction
+  - consume the decision asynchronously
+  - complete or reject the transfer idempotently
+- External payment provider integration for top-ups or withdrawals, using provider idempotency keys, timeouts, retries, and contract tests.
 
 ## Short Pitch
 

@@ -48,7 +48,8 @@ class TransferRiskPolicyTest {
 
         // then
         assertThat(result).containsInstanceOf(TransferError.TransferLimitExceeded.class);
-        assertThat(result.orElseThrow().getMessage()).contains("100.01").contains("100.00");
+        assertThat(result.orElseThrow().getMessage())
+                .isEqualTo("Transfer amount 100.01 exceeds configured single transfer limit 100.00");
     }
 
     private CreateTransferRequest requestWithAmount(String amount) {

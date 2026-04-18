@@ -28,6 +28,7 @@ import static com.nn.safetransfer.TestAmounts.THREE_HUNDRED;
 import static com.nn.safetransfer.TestAmounts.THREE_HUNDRED_FIFTY_50;
 import static com.nn.safetransfer.TestAmounts.TWO_HUNDRED_FIFTY_50;
 import static com.nn.safetransfer.TestAmounts.ZERO;
+import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY;
 import static com.nn.safetransfer.ledger.domain.LedgerEntryType.CREDIT;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.PLN;
@@ -49,7 +50,6 @@ class WalletControllerIntegrationTest {
     private static final String BALANCE_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/balance";
     private static final String DEPOSITS_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/deposits";
     private static final String TRANSFERS_PATH = "/api/v1/tenants/{tenantId}/transfers";
-    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Autowired
@@ -156,9 +156,11 @@ class WalletControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = """
+                Validation failed for argument [1] in public com.nn.safetransfer.wallet.api.dto.WalletResponse com.nn.safetransfer.wallet.api.WalletController.createWallet(java.util.UUID,com.nn.safetransfer.wallet.api.dto.CreateWalletRequest): [Field error in object 'createWalletRequest' on field 'currency': rejected value []; codes [NotBlank.createWalletRequest.currency,NotBlank.currency,NotBlank.java.lang.String,NotBlank]; arguments [org.springframework.context.support.DefaultMessageSourceResolvable: codes [createWalletRequest.currency,currency]; arguments []; default message [currency]]; default message [must not be blank]]\s""";
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).isNotBlank(),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).contains("currency: must not be blank")
         );
     }
@@ -180,9 +182,11 @@ class WalletControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = """
+                Validation failed for argument [1] in public com.nn.safetransfer.wallet.api.dto.WalletResponse com.nn.safetransfer.wallet.api.WalletController.createWallet(java.util.UUID,com.nn.safetransfer.wallet.api.dto.CreateWalletRequest): [Field error in object 'createWalletRequest' on field 'customerId': rejected value [null]; codes [NotNull.createWalletRequest.customerId,NotNull.customerId,NotNull.java.util.UUID,NotNull]; arguments [org.springframework.context.support.DefaultMessageSourceResolvable: codes [createWalletRequest.customerId,customerId]; arguments []; default message [customerId]]; default message [must not be null]]\s""";
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).isNotBlank(),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).contains("customerId: must not be null")
         );
     }
@@ -259,9 +263,11 @@ class WalletControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet with id '%s' was not found for tenant '%s'"
+                .formatted(walletId, tenantId);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("was not found"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -373,9 +379,11 @@ class WalletControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet with id '%s' was not found for tenant '%s'"
+                .formatted(walletId, tenantId);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("was not found"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -396,9 +404,11 @@ class WalletControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet currency is '%s' but request currency is '%s'"
+                .formatted(EUR, USD);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("Wallet currency is"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -419,9 +429,11 @@ class WalletControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = """
+                Validation failed for argument [2] in public com.nn.safetransfer.wallet.api.dto.DepositResponse com.nn.safetransfer.wallet.api.WalletController.deposit(java.util.UUID,java.util.UUID,com.nn.safetransfer.wallet.api.dto.DepositRequest): [Field error in object 'depositRequest' on field 'amount': rejected value [0.00]; codes [DecimalMin.depositRequest.amount,DecimalMin.amount,DecimalMin.java.math.BigDecimal,DecimalMin]; arguments [org.springframework.context.support.DefaultMessageSourceResolvable: codes [depositRequest.amount,amount]; arguments []; default message [amount],true,0.01]; default message [must be greater than or equal to 0.01]]\s""";
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).isNotBlank(),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).contains("amount: must be greater than or equal to 0.01")
         );
     }
@@ -511,9 +523,11 @@ class WalletControllerIntegrationTest {
 
         // then
         var error = readError(result.getResponse().getContentAsString());
+        var expectedErrorMsg = "Wallet with id '%s' was not found for tenant '%s'"
+                .formatted(walletId, tenantId);
         assertAll(
                 () -> assertThat(error.errorId()).isNotNull(),
-                () -> assertThat(error.errorMessage()).contains("was not found"),
+                () -> assertThat(error.errorMessage()).isEqualTo(expectedErrorMsg),
                 () -> assertThat(error.errors()).isNull()
         );
     }
@@ -535,7 +549,7 @@ class WalletControllerIntegrationTest {
                 .build();
 
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
-                        .header(IDEMPOTENCY_KEY_HEADER, randomUUID().toString())
+                        .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(transferRequest)))
                 .andExpect(status().isCreated());
