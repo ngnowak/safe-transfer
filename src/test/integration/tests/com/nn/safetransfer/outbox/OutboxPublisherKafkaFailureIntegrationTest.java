@@ -104,7 +104,7 @@ class OutboxPublisherKafkaFailureIntegrationTest {
         var destinationWallet = createWalletInTx(tenantId);
         depositInTx(tenantId, sourceWallet.getId());
 
-        var transferResult = transactionTemplate.execute(status -> transferService.transfer(
+        var transferResult = transactionTemplate.execute(_ -> transferService.transfer(
                 tenantId,
                 UUID.randomUUID().toString(),
                 CreateTransferRequest.builder()
@@ -145,7 +145,7 @@ class OutboxPublisherKafkaFailureIntegrationTest {
     }
 
     private Wallet createWalletInTx(TenantId tenantId) {
-        return transactionTemplate.execute(status -> walletApplicationService.handle(CreateWalletCommand.builder()
+        return transactionTemplate.execute(_ -> walletApplicationService.handle(CreateWalletCommand.builder()
                         .tenantId(tenantId)
                         .customerId(CustomerId.create())
                         .currency(CurrencyCode.EUR)
@@ -155,7 +155,7 @@ class OutboxPublisherKafkaFailureIntegrationTest {
     }
 
     private void depositInTx(TenantId tenantId, WalletId walletId) {
-        transactionTemplate.executeWithoutResult(status -> depositService.deposit(
+        transactionTemplate.executeWithoutResult(_ -> depositService.deposit(
                 tenantId,
                 walletId,
                 new DepositRequest(ONE_HUNDRED, CurrencyCode.EUR.name(), "Kafka failure setup deposit")

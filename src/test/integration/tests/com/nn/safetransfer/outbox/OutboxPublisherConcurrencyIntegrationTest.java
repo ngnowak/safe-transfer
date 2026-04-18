@@ -104,7 +104,7 @@ class OutboxPublisherConcurrencyIntegrationTest {
                 futures.add(executor.submit(() -> {
                     readyLatch.countDown();
                     startLatch.await();
-                    return transactionTemplate.execute(status -> outboxPublisher.publishPending(10));
+                    return transactionTemplate.execute(_ -> outboxPublisher.publishPending(10));
                 }));
             }
 

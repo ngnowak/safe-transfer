@@ -103,7 +103,7 @@ class KafkaOutboxPublisherIntegrationTest {
     }
 
     @Test
-    void shouldPublishOutboxEventToKafkaAndPersistAuditEvent() throws Exception {
+    void shouldPublishOutboxEventToKafkaAndPersistAuditEvent() {
         var tenantId = TenantId.create();
         var sourceWallet = createWalletInTx(tenantId, EUR);
         var destinationWallet = createWalletInTx(tenantId, EUR);

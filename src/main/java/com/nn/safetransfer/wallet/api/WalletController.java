@@ -59,10 +59,7 @@ public class WalletController implements WalletApi {
             @PathVariable UUID walletId
     ) {
         log.debug("Getting wallet: walletId={}, tenantId={}", walletId, tenantId);
-        var command = GetWalletQuery.builder()
-                .tenantId(new TenantId(tenantId))
-                .walletId(new WalletId(walletId))
-                .build();
+        var command = getGetWalletQuery(tenantId, walletId);
         var wallet = queryWalletUseCase.handle(command);
 
         return walletResultMapper.toWalletResponse(wallet);
@@ -74,10 +71,7 @@ public class WalletController implements WalletApi {
             @PathVariable UUID walletId
     ) {
         log.debug("Getting balance: walletId={}, tenantId={}", walletId, tenantId);
-        var query = GetBalanceQuery.builder()
-                .tenantId(new TenantId(tenantId))
-                .walletId(new WalletId(walletId))
-                .build();
+        var query = getBalanceQuery(tenantId, walletId);
         var result = queryBalanceUseCase.handle(query);
 
         return balanceResponseMapper.toBalanceResponse(result);
@@ -97,5 +91,19 @@ public class WalletController implements WalletApi {
         );
         result.getValue().ifPresent(ledgerEntry -> log.info("Deposit completed: ledgerEntryId={}, walletId={}", ledgerEntry.getId(), walletId));
         return depositResponseMapper.toDepositResponse(result);
+    }
+
+    private static GetWalletQuery getGetWalletQuery(UUID tenantId, UUID walletId) {
+        return GetWalletQuery.builder()
+                .tenantId(new TenantId(tenantId))
+                .walletId(new WalletId(walletId))
+                .build();
+    }
+
+    private GetBalanceQuery getBalanceQuery(UUID tenantId, UUID walletId) {
+        return GetBalanceQuery.builder()
+                .tenantId(new TenantId(tenantId))
+                .walletId(new WalletId(walletId))
+                .build();
     }
 }
