@@ -10,6 +10,7 @@ The project is intentionally built as a modular monolith. It uses PostgreSQL for
 - Wallet creation and wallet lookup
 - Deposits
 - Internal wallet-to-wallet transfers
+- Configurable transfer risk limit
 - Immutable ledger entries and balance derived from ledger
 - Idempotent transfer handling
 - Concurrency-safe transfer processing
@@ -57,14 +58,15 @@ The project is intentionally built as a modular monolith. It uses PostgreSQL for
 
 1. Client sends a transfer request.
 2. `TransferService` validates wallets, currency, balance, and idempotency.
-3. Transfer row and ledger rows are written in one transaction.
-4. A `transfer.completed` outbox row is written in the same transaction.
-5. A newly created transfer returns `201 Created`; an idempotent replay of the same request returns the existing transfer with `200 OK`.
-6. `OutboxPublisher` atomically claims retryable outbox rows, marks them `PROCESSING`, and commits the claim transaction.
-7. The claimed event is dispatched outside the claim transaction.
-8. With Kafka publishing enabled, the event is sent to Kafka and consumed by `AuditKafkaListener`; otherwise the local in-process dispatcher calls `AuditConsumer` directly.
-9. `AuditConsumer` records an audit row.
-10. Outbox row becomes `PUBLISHED`, `FAILED`, or `FATAL`.
+3. `TransferRiskPolicy` checks configured risk limits from `application.yaml`.
+4. Transfer row and ledger rows are written in one transaction.
+5. A `transfer.completed` outbox row is written in the same transaction.
+6. A newly created transfer returns `201 Created`; an idempotent replay of the same request returns the existing transfer with `200 OK`.
+7. `OutboxPublisher` atomically claims retryable outbox rows, marks them `PROCESSING`, and commits the claim transaction.
+8. The claimed event is dispatched outside the claim transaction.
+9. With Kafka publishing enabled, the event is sent to Kafka and consumed by `AuditKafkaListener`; otherwise the local in-process dispatcher calls `AuditConsumer` directly.
+10. `AuditConsumer` records an audit row.
+11. Outbox row becomes `PUBLISHED`, `FAILED`, or `FATAL`.
 
 ### Reliability Rules
 
@@ -185,6 +187,10 @@ Transfers use `idempotency_key` to make repeated requests safe.
 
 Wallets are loaded in deterministic order to reduce deadlock risk during transfer processing.
 
+### Configurable risk policy
+
+The maximum single transfer amount is externalized in `application.yaml` under `safetransfer.transfer.risk`.
+
 ### Transactional outbox
 
 Business state and async side effects are separated correctly:
@@ -209,7 +215,7 @@ Implemented async flow:
 - Distributed tracing: add OpenTelemetry traces across REST requests, transfer processing, outbox publishing, Kafka delivery, and audit persistence.
 - Kafka hardening: add schema versioning, a dead-letter topic, consumer retry/backoff policy, and explicit monitoring for consumer lag.
 - Operations: add an admin endpoint or internal UI for inspecting outbox rows, retrying `FATAL` rows, and viewing audit history.
-- Product features: wallet status transitions, daily transfer limits, holds/reservations, refunds/reversals, and external payment provider integration.
+- Product features: wallet status transitions, daily cumulative limits, holds/reservations, refunds/reversals, and external payment provider integration.
 - API maturity: add versioned OpenAPI examples, pagination/filtering for wallet and transfer history, and consistent correlation IDs in responses.
 - Deployment readiness: add container image publishing, environment-specific configuration, Kubernetes manifests or Helm charts, and secret management.
 - Quality gates: add mutation testing, dependency/security scanning, contract tests, and performance tests for concurrent transfers.

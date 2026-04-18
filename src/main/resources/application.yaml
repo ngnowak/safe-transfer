@@ -57,6 +57,10 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 safetransfer:
+  transfer:
+    risk:
+      enabled: true
+      max-single-transfer-amount: 10000.00
   outbox:
     publisher:
       fixed-delay: 5000

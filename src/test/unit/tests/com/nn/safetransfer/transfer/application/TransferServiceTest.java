@@ -76,6 +76,9 @@ class TransferServiceTest {
     @Mock
     private TransferRequestHasher transferRequestHasher;
 
+    @Mock
+    private TransferRiskPolicy transferRiskPolicy;
+
     @InjectMocks
     private TransferService transferService;
 
@@ -344,6 +347,47 @@ class TransferServiceTest {
                 () -> assertThat(result.getError()).containsInstanceOf(TransferError.InsufficientFunds.class),
                 () -> assertThat(result.getError().orElseThrow().getMessage()).contains("100").contains("500")
         );
+    }
+
+    @Test
+    void shouldReturnFailureWhenTransferAmountExceedsConfiguredRiskLimit() {
+        // given
+        var tenantId = TenantId.create();
+        var sourceWalletId = WalletId.create();
+        var destinationWalletId = WalletId.create();
+        var sourceWallet = buildWallet(sourceWalletId, tenantId, EUR);
+        var destinationWallet = buildWallet(destinationWalletId, tenantId, EUR);
+
+        var request = new CreateTransferRequest(
+                sourceWalletId.value(), destinationWalletId.value(),
+                new BigDecimal("1000.00"), "EUR", null
+        );
+
+        given(transferRepository.findByTenantIdAndIdempotencyKey(tenantId, "key"))
+                .willReturn(Optional.empty());
+        given(walletRepository.findByIdAndTenantIdForUpdate(sourceWalletId, tenantId))
+                .willReturn(Optional.of(sourceWallet));
+        given(walletRepository.findByIdAndTenantIdForUpdate(destinationWalletId, tenantId))
+                .willReturn(Optional.of(destinationWallet));
+        given(transferRiskPolicy.validate(request))
+                .willReturn(Optional.of(new TransferError.TransferLimitExceeded(
+                        new BigDecimal("1000.00"),
+                        new BigDecimal("500.00")
+                )));
+
+        // when
+        var result = transferService.transfer(tenantId, "key", request);
+
+        // then
+        assertAll(
+                () -> assertThat(result.isFailure()).isTrue(),
+                () -> assertThat(result.getError()).containsInstanceOf(TransferError.TransferLimitExceeded.class),
+                () -> assertThat(result.getError().orElseThrow().getMessage()).contains("1000.00").contains("500.00")
+        );
+        verify(ledgerEntryRepository, never()).calculateBalance(any(), any());
+        verify(transferRepository, never()).save(any());
+        verify(outboxEventRepository, never()).save(any());
+        verify(transferMetrics).recordTransferFailure(sample, TransferMetricOutcome.TRANSFER_LIMIT_EXCEEDED);
     }
 
     @Test

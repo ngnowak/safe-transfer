@@ -36,6 +36,7 @@ public class TransferService {
     private final OutboxEventFactory outboxEventFactory;
     private final TransferMetrics transferMetrics;
     private final TransferRequestHasher transferRequestHasher;
+    private final TransferRiskPolicy transferRiskPolicy;
 
     @Transactional
     public Result<TransferError, Transfer> transfer(TenantId tenantId, String idempotencyKey, CreateTransferRequest request) {
@@ -45,7 +46,7 @@ public class TransferService {
                 tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId(), request.amount(), request.currency());
 
         var result = transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
-                .<Result<TransferError, Transfer>>map(existing -> handleExistingTransfer(existing, idempotencyKey, requestHash))
+                .map(existing -> handleExistingTransfer(existing, idempotencyKey, requestHash))
                 .orElseGet(() -> createTransferSafely(tenantId, idempotencyKey, request, requestHash));
 
         if (result.isSuccess()) {
@@ -132,6 +133,13 @@ public class TransferService {
             return Result.failure(new TransferError.CurrencyMismatch(destinationWallet.getCurrency(), requestCurrency));
         }
 
+        var riskViolation = transferRiskPolicy.validate(request);
+        if (riskViolation.isPresent()) {
+            log.warn("Transfer blocked by risk policy: tenantId={}, sourceWalletId={}, amount={}, reason={}",
+                    tenantId, sourceWalletId, request.amount(), riskViolation.get().getMessage());
+            return Result.failure(riskViolation.get());
+        }
+
         var availableBalance = ledgerEntryRepository.calculateBalance(tenantId, sourceWalletId);
         if (availableBalance.compareTo(request.amount()) < 0) {
             log.warn("Insufficient funds: walletId={}, available={}, requested={}", sourceWalletId, availableBalance, request.amount());
@@ -158,7 +166,7 @@ public class TransferService {
             log.warn("Transfer for tenantId={} and idempotencyKey={} already exists:", tenantId, idempotencyKey);
 
             return transferRepository.findByTenantIdAndIdempotencyKey(tenantId, idempotencyKey)
-                    .<Result<TransferError, Transfer>>map(existing -> handleExistingTransfer(existing, idempotencyKey, requestHash))
+                    .map(existing -> handleExistingTransfer(existing, idempotencyKey, requestHash))
                     .orElseThrow(() -> ex);
         }
 

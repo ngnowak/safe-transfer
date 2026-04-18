@@ -17,26 +17,19 @@ import com.nn.safetransfer.wallet.application.QueryWalletUseCase;
 import com.nn.safetransfer.wallet.application.mapper.CreateWalletCommandMapper;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
 @Slf4j
-@Tag(name = "Wallet", description = "Wallet management endpoints")
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/v1/tenants/{tenantId}/wallets")
-public class WalletController {
+public class WalletController implements WalletApi {
 
     private final CreateWalletUseCase createWalletUseCase;
     private final WalletResultMapper walletResultMapper;
@@ -47,8 +40,7 @@ public class WalletController {
     private final DepositResponseMapper depositResponseMapper;
     private final BalanceResponseMapper balanceResponseMapper;
 
-    @Operation(summary = "Create wallet")
-    @PostMapping
+    @Override
     public WalletResponse createWallet(
             @PathVariable UUID tenantId,
             @Valid @RequestBody CreateWalletRequest request
@@ -61,8 +53,7 @@ public class WalletController {
         return response;
     }
 
-    @Operation(summary = "Get wallet by id")
-    @GetMapping(path = "/{walletId}")
+    @Override
     public WalletResponse getWallet(
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
@@ -77,8 +68,7 @@ public class WalletController {
         return walletResultMapper.toWalletResponse(wallet);
     }
 
-    @Operation(summary = "Get wallet balance")
-    @GetMapping("/{walletId}/balance")
+    @Override
     public BalanceResponse getBalance(
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
@@ -93,8 +83,7 @@ public class WalletController {
         return balanceResponseMapper.toBalanceResponse(result);
     }
 
-    @Operation(summary = "Deposits money")
-    @PostMapping("/{walletId}/deposits")
+    @Override
     public DepositResponse deposit(
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId,

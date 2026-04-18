@@ -35,7 +35,9 @@ import static com.nn.safetransfer.TestAmounts.ONE_HUNDRED;
 import static com.nn.safetransfer.TestAmounts.ONE_THOUSAND;
 import static com.nn.safetransfer.TestAmounts.ONE_TWENTY;
 import static com.nn.safetransfer.TestAmounts.SEVEN_HUNDRED_FIFTY;
+import static com.nn.safetransfer.TestAmounts.TEN_THOUSAND_01;
 import static com.nn.safetransfer.TestAmounts.THREE_HUNDRED;
+import static com.nn.safetransfer.TestAmounts.TWENTY_THOUSAND;
 import static com.nn.safetransfer.TestAmounts.TWO_HUNDRED_FIFTY;
 import static com.nn.safetransfer.TestAmounts.ZERO;
 import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
@@ -129,8 +131,8 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(response.sourceWalletId()).isEqualTo(sourceWalletId),
                 () -> assertThat(response.destinationWalletId()).isEqualTo(destinationWalletId),
                 () -> assertThat(response.amount()).isEqualByComparingTo(TWO_HUNDRED_FIFTY),
-                () -> assertThat(response.currency()).isEqualTo("EUR"),
-                () -> assertThat(response.status()).isEqualTo("COMPLETED"),
+                () -> assertThat(response.currency()).isEqualTo(EUR.name()),
+                () -> assertThat(response.status()).isEqualTo(COMPLETED.name()),
                 () -> assertThat(response.reference()).isEqualTo("Test transfer"),
                 () -> assertThat(response.createdAt()).isNotNull()
         );
@@ -520,6 +522,40 @@ class TransferControllerIntegrationTest {
                 () -> assertThat(error.errorId()).isNotNull(),
                 () -> assertThat(error.errorMessage()).contains("insufficient funds"),
                 () -> assertThat(error.errors()).isNull()
+        );
+    }
+
+    @Test
+    void shouldReturnConflictWhenTransferExceedsConfiguredRiskLimit() throws Exception {
+        // given
+        var tenantId = randomUUID();
+        var sourceWalletId = createWallet(tenantId, EUR.name());
+        var destinationWalletId = createWallet(tenantId, EUR.name());
+        deposit(tenantId, sourceWalletId, TWENTY_THOUSAND, EUR.name());
+
+        var request = CreateTransferRequest.builder()
+                .sourceWalletId(UUID.fromString(sourceWalletId))
+                .destinationWalletId(UUID.fromString(destinationWalletId))
+                .amount(TEN_THOUSAND_01)
+                .currency(EUR.name())
+                .reference("Over configured risk limit")
+                .build();
+
+        // when
+        var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
+                        .header(IDEMPOTENCY_KEY_HEADER, randomUUID().toString())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        // then
+        var error = readError(result.getResponse().getContentAsString());
+        assertAll(
+                () -> assertThat(error.errorMessage()).contains("exceeds configured single transfer limit"),
+                () -> assertThat(transferRepository.findAll()).isEmpty(),
+                () -> assertThat(outboxEventRepository.findAll()).isEmpty(),
+                () -> assertThat(ledgerEntryRepository.findAll()).hasSize(1)
         );
     }
 

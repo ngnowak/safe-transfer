@@ -56,6 +56,14 @@ public sealed interface TransferError {
         }
     }
 
+    record TransferLimitExceeded(BigDecimal requested, BigDecimal limit) implements TransferError {
+        @Override
+        public String getMessage() {
+            return "Transfer amount %s exceeds configured single transfer limit %s"
+                    .formatted(requested, limit);
+        }
+    }
+
     record IdempotencyKeyConflict(String idempotencyKey) implements TransferError {
         @Override
         public String getMessage() {

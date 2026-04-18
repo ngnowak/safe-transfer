@@ -22,6 +22,8 @@ public final class TestAmounts {
     public static final BigDecimal SEVEN_HUNDRED_FIFTY = new BigDecimal("750.00");
     public static final BigDecimal NINE_HUNDRED = new BigDecimal("900.00");
     public static final BigDecimal ONE_THOUSAND = new BigDecimal("1000.00");
+    public static final BigDecimal TEN_THOUSAND_01 = new BigDecimal("10000.01");
+    public static final BigDecimal TWENTY_THOUSAND = new BigDecimal("20000.00");
 
     private TestAmounts() {
     }
