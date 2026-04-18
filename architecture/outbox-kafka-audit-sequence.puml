@@ -9,68 +9,114 @@ participant OutboxPublisherImpl as Publisher
 participant OutboxPublishingTransactions as Transactions
 participant OutboxEventRepository as OutboxRepository
 participant KafkaOutboxEventDispatcher as KafkaDispatcher
+participant ObjectMapper as KafkaObjectMapper
 queue Kafka
+participant "Spring Kafka\nListener Container" as ListenerContainer
 participant AuditKafkaListener
+participant ObjectMapper as AuditObjectMapper
 participant AuditConsumerImpl as AuditConsumer
 participant AuditEventFactory
 participant AuditEventRepository as AuditRepository
 database PostgreSQL
 
 OutboxPublisherJob -> Publisher : publishPending(batchSize)
+note right of Publisher
+  Runs without an enclosing transaction.
+  Claim and status updates are separate short transactions.
+end note
+
 Publisher -> Transactions : claimPending(batchSize, maxRetries)
 Transactions -> OutboxRepository : claimTopRetryableOrderByOccurredAtAsc(...)
-OutboxRepository -> PostgreSQL : update NEW/FAILED/stale PROCESSING\nset PROCESSING, claimed_at\nFOR UPDATE SKIP LOCKED
+OutboxRepository -> PostgreSQL : claim NEW/FAILED/stale PROCESSING\nset status PROCESSING, claimed_at now\nFOR UPDATE SKIP LOCKED
 PostgreSQL --> OutboxRepository : claimed events
 OutboxRepository --> Transactions : events
 Transactions --> Publisher : events
 
 loop each outbox event
   Publisher -> KafkaDispatcher : dispatch(outboxEvent)
-  KafkaDispatcher -> Kafka : send(topic, aggregateId, serialized event)
+  KafkaDispatcher -> KafkaObjectMapper : writeValueAsString(outboxEvent)
 
-  alt Kafka publish succeeds
-    KafkaDispatcher --> Publisher : ok
-    Publisher -> Transactions : save status PUBLISHED\npublishedAt now, claimedAt null
-    Transactions -> OutboxRepository : save(publishedEvent)
-    OutboxRepository -> PostgreSQL : update outbox_event
-  else Kafka publish fails
+  alt serialization fails
+    KafkaObjectMapper --> KafkaDispatcher : JsonProcessingException
     KafkaDispatcher --> Publisher : OutboxProcessingException
     Publisher -> Transactions : save status FAILED or FATAL\nincrement retryCount, claimedAt null
     Transactions -> OutboxRepository : save(failedEvent)
     OutboxRepository -> PostgreSQL : update outbox_event
+  else serialization succeeds
+    KafkaObjectMapper --> KafkaDispatcher : JSON payload
+    KafkaDispatcher -> Kafka : send(topic, aggregateId, payload).get()
+
+    alt Kafka publish succeeds
+      KafkaDispatcher --> Publisher : ok
+      Publisher -> Transactions : save status PUBLISHED\npublishedAt now, claimedAt null
+      Transactions -> OutboxRepository : save(publishedEvent)
+      OutboxRepository -> PostgreSQL : update outbox_event
+    else interrupted or Kafka publish fails
+      KafkaDispatcher --> Publisher : OutboxProcessingException
+      Publisher -> Transactions : save status FAILED or FATAL\nincrement retryCount, claimedAt null
+      Transactions -> OutboxRepository : save(failedEvent)
+      OutboxRepository -> PostgreSQL : update outbox_event
+    end
   end
 end
 
-Kafka -> AuditKafkaListener : message from wallet.transfer.completed
-AuditKafkaListener -> AuditConsumer : consume(outboxEvent)
+Kafka -> ListenerContainer : deliver message from wallet.transfer.completed
+ListenerContainer -> AuditKafkaListener : consume(message)
+AuditKafkaListener -> AuditObjectMapper : readValue(message, OutboxEvent)
 
-alt event type supported
-  AuditConsumer -> AuditEventFactory : from(outboxEvent)
-  AuditEventFactory --> AuditConsumer : audit event
-  AuditConsumer -> AuditRepository : save(auditEvent)
-  AuditRepository -> PostgreSQL : insert audit_event
-else duplicate audit event
-  AuditRepository --> AuditConsumer : unique constraint violation
-  AuditConsumer --> AuditKafkaListener : ignore duplicate
-else unsupported event type
-  AuditConsumer --> AuditKafkaListener : ignored
+alt message deserializes
+  AuditObjectMapper --> AuditKafkaListener : outboxEvent
+  AuditKafkaListener -> AuditConsumer : consume(outboxEvent)
+
+  alt unsupported event type
+    AuditConsumer --> AuditKafkaListener : ignored
+  else TRANSFER_COMPLETED
+    AuditConsumer -> AuditEventFactory : from(outboxEvent)
+    AuditEventFactory --> AuditConsumer : audit event
+    AuditConsumer -> AuditRepository : save(auditEvent)
+    AuditRepository -> PostgreSQL : insert audit_event
+
+    alt insert succeeds
+      PostgreSQL --> AuditRepository : saved
+      AuditRepository --> AuditConsumer : audit event
+      AuditConsumer --> AuditKafkaListener : ok
+    else duplicate source event id
+      PostgreSQL --> AuditRepository : unique constraint violation
+      AuditRepository --> AuditConsumer : DataIntegrityViolationException
+      AuditConsumer --> AuditKafkaListener : duplicate ignored
+    else database failure
+      PostgreSQL --> AuditRepository : data access error
+      AuditRepository --> AuditConsumer : DataAccessException
+      AuditConsumer --> AuditKafkaListener : OutboxProcessingException
+      AuditKafkaListener --> ListenerContainer : exception bubbles up
+    end
+  end
+else invalid message
+  AuditObjectMapper --> AuditKafkaListener : JsonProcessingException
+  AuditKafkaListener --> ListenerContainer : OutboxProcessingException
 end
 
-note right of Publisher
+note right of KafkaDispatcher
+  Kafka dispatcher is active only when:
+  application.kafka.publishing=true
+end note
+
+note over Publisher
   Retry states:
   NEW -> PROCESSING -> FAILED
   FAILED -> PROCESSING -> FATAL
   or PROCESSING -> PUBLISHED
 end note
 
-note bottom of Transactions
-  Claim and final status updates use short DB transactions.
+note over Transactions
+  claimPending() and save() use REQUIRES_NEW.
   Kafka dispatch happens outside the claim transaction.
 end note
 
-note bottom of AuditConsumer
+note over AuditConsumer
   Audit consumer is idempotent.
   Duplicate Kafka delivery should not create duplicate audit rows.
+  Unsupported event types are ignored.
 end note
 
 @enduml

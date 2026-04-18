@@ -5,24 +5,38 @@ skinparam shadowing false
 skinparam nodeStyle rectangle
 
 node "Developer Machine" as DevMachine {
-  artifact "Postman / curl" as Client
-  node "Spring Boot JVM\nSafeTransfer" as App
+  artifact "Postman / curl / Swagger UI" as Client
+  node "Spring Boot JVM\nSafeTransfer\noptional bootRun" as App
 }
 
 node "Docker" as Docker {
+  node "safe-transfer-app\nSpring Boot container\noptional full stack" as AppContainer
   database "safe-transfer-postgres\nPostgreSQL" as Postgres
   queue "safe-transfer-kafka\nKafka" as Kafka
   artifact "kcat container\noptional local proof" as Kcat
 }
 
 Client --> App : HTTP localhost:8080
+Client --> AppContainer : HTTP localhost:8080
 App --> Postgres : JDBC localhost:5432
-App --> Kafka : Kafka localhost:9092\nlocal profile
+App --> Kafka : Kafka localhost:9092\nwhen Kafka publishing enabled
+AppContainer --> Postgres : JDBC postgres:5432
+AppContainer --> Kafka : Kafka safe-transfer-kafka:29092
 Kcat --> Kafka : safe-transfer-kafka:29092\nDocker network
 
 note right of App
-  Run with:
+  Host JVM can use:
+  .\gradlew.bat bootRun
+
+  Kafka publishing can be enabled with:
   SPRING_PROFILES_ACTIVE=local
+  or APPLICATION_KAFKA_PUBLISHING=true
+  and SPRING_KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+end note
+
+note right of AppContainer
+  Full Docker stack:
+  docker compose -f docker/docker-compose-with-app.yml up --build
 end note
 
 note right of Kafka

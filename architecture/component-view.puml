@@ -6,9 +6,13 @@ skinparam componentStyle rectangle
 skinparam packageStyle rectangle
 
 package "API Layer" {
+  [WalletApi] as WalletApi
   [WalletController] as WalletController
+  [TransferApi] as TransferApi
   [TransferController] as TransferController
+  [ApiHeaders] as ApiHeaders
   [GlobalExceptionHandler] as GlobalExceptionHandler
+  [OpenApiConfiguration] as OpenApiConfiguration
 }
 
 package "Wallet Module" {
@@ -21,6 +25,9 @@ package "Wallet Module" {
 
 package "Transfer Module" {
   [TransferService] as TransferService
+  [TransferRequestHasher] as TransferRequestHasher
+  [TransferRiskPolicy] as TransferRiskPolicy
+  [TransferRiskProperties] as TransferRiskProperties
   [QueryTransferUseCase] as QueryTransfer
   [TransferRepository] as TransferRepository
 }
@@ -50,6 +57,12 @@ package "Audit Module" {
 database "PostgreSQL" as Db
 queue "Kafka" as Kafka
 
+WalletApi <|.. WalletController
+TransferApi <|.. TransferController
+OpenApiConfiguration ..> WalletApi : documents API
+OpenApiConfiguration ..> TransferApi : documents API
+TransferApi ..> ApiHeaders : Idempotency-Key
+
 WalletController --> WalletService : create wallet
 WalletController --> QueryWallet : get wallet
 WalletController --> QueryBalance : get balance
@@ -58,6 +71,9 @@ WalletController --> DepositService : deposit
 TransferController --> TransferService : create transfer
 TransferController --> QueryTransfer : get transfer
 
+TransferService --> TransferRequestHasher : hash request
+TransferService --> TransferRiskPolicy : validate risk limits
+TransferRiskPolicy --> TransferRiskProperties : configured limit
 TransferService --> WalletRepository : lock wallets
 TransferService --> LedgerRepository : calculate balance\nsave debit/credit
 TransferService --> TransferRepository : save transfer
@@ -92,6 +108,11 @@ GlobalExceptionHandler ..> TransferController
 note right of Dispatcher
   Implementation depends on:
   application.kafka.publishing
+end note
+
+note right of TransferRiskProperties
+  Configured under:
+  safetransfer.transfer.risk
 end note
 
 @enduml

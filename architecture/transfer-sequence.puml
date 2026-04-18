@@ -7,6 +7,8 @@ skinparam sequenceMessageAlign center
 actor Client
 participant TransferController
 participant TransferService
+participant TransferRequestHasher as Hasher
+participant TransferRiskPolicy as RiskPolicy
 participant WalletRepository
 participant LedgerEntryRepository as LedgerRepository
 participant TransferRepository
@@ -17,44 +19,67 @@ database PostgreSQL
 Client -> TransferController : POST /api/v1/tenants/{tenantId}/transfers\nIdempotency-Key
 TransferController -> TransferService : transfer(tenantId, idempotencyKey, request)
 
+TransferService -> Hasher : hash(request)
+Hasher --> TransferService : requestHash
+
 TransferService -> TransferRepository : findByTenantIdAndIdempotencyKey(...)
 alt existing idempotency key
   TransferRepository --> TransferService : existing transfer
-  TransferService --> TransferController : existing transfer result
+  alt same request hash
+    TransferService --> TransferController : existing transfer result
+    TransferController --> Client : 200 OK\nTransferResponse
+  else different request hash
+    TransferService --> TransferController : idempotency conflict
+    TransferController --> Client : 409 Conflict
+  end
 else new transfer
   TransferService -> WalletRepository : lock source and destination wallets\nin deterministic order
   WalletRepository --> TransferService : wallets
 
-  TransferService -> LedgerRepository : calculateBalance(sourceWallet)
-  LedgerRepository --> TransferService : available balance
-
-  alt insufficient funds
+  TransferService -> RiskPolicy : validate(request)
+  alt transfer exceeds configured risk limit
+    RiskPolicy --> TransferService : TransferLimitExceeded
     TransferService --> TransferController : failure
     TransferController --> Client : 409 Conflict
-  else enough funds
-    TransferService -> TransferRepository : save completed transfer
-    TransferRepository -> PostgreSQL : insert transfer
+  else risk accepted
+    RiskPolicy --> TransferService : ok
 
-    TransferService -> LedgerRepository : save debit entry
-    LedgerRepository -> PostgreSQL : insert ledger debit
+    TransferService -> LedgerRepository : calculateBalance(sourceWallet)
+    LedgerRepository --> TransferService : available balance
 
-    TransferService -> LedgerRepository : save credit entry
-    LedgerRepository -> PostgreSQL : insert ledger credit
+    alt insufficient funds
+      TransferService --> TransferController : failure
+      TransferController --> Client : 409 Conflict
+    else enough funds
+      TransferService -> TransferRepository : save completed transfer\nwith requestHash
+      TransferRepository -> PostgreSQL : insert transfer
 
-    TransferService -> OutboxEventFactory : from TransferCompletedDomainEvent
-    OutboxEventFactory --> TransferService : outbox event
+      TransferService -> LedgerRepository : save debit entry
+      LedgerRepository -> PostgreSQL : insert ledger debit
 
-    TransferService -> OutboxRepository : save outbox event NEW
-    OutboxRepository -> PostgreSQL : insert outbox_event
+      TransferService -> LedgerRepository : save credit entry
+      LedgerRepository -> PostgreSQL : insert ledger credit
 
-    TransferService --> TransferController : success
-    TransferController --> Client : 201 Created\nTransferResponse
+      TransferService -> OutboxEventFactory : from TransferCompletedDomainEvent
+      OutboxEventFactory --> TransferService : outbox event
+
+      TransferService -> OutboxRepository : save outbox event NEW
+      OutboxRepository -> PostgreSQL : insert outbox_event
+
+      TransferService --> TransferController : success
+      TransferController --> Client : 201 Created\nTransferResponse
+    end
   end
 end
 
 note over TransferService,PostgreSQL
   Transfer, ledger entries, and outbox event
   are written in one database transaction.
+end note
+
+note right of RiskPolicy
+  Max single transfer amount is externalized in:
+  safetransfer.transfer.risk.max-single-transfer-amount
 end note
 
 @enduml

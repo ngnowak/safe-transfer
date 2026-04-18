@@ -40,8 +40,18 @@ class Transfer {
   CurrencyCode currency
   TransferStatus status
   String idempotencyKey
+  String requestHash
   String reference
   Instant createdAt
+}
+
+class TransferRiskPolicy {
+  validate(CreateTransferRequest)
+}
+
+class TransferRiskProperties {
+  boolean enabled
+  BigDecimal maxSingleTransferAmount
 }
 
 class OutboxEvent {
@@ -54,6 +64,7 @@ class OutboxEvent {
   OutboxStatus status
   int retryCount
   Instant occurredAt
+  Instant claimedAt
   Instant publishedAt
 }
 
@@ -79,6 +90,7 @@ enum TransferStatus {
 
 enum OutboxStatus {
   NEW
+  PROCESSING
   PUBLISHED
   FAILED
   FATAL
@@ -90,6 +102,7 @@ Wallet "1" o-- "*" LedgerEntry
 Wallet "1" <-- "*" Transfer : source
 Wallet "1" <-- "*" Transfer : destination
 Transfer "1" --> "1" OutboxEvent : emits
+TransferRiskPolicy --> TransferRiskProperties : reads
 OutboxEvent "1" --> "0..1" AuditEvent : audited as
 LedgerEntry --> LedgerEntryType
 Transfer --> TransferStatus
@@ -108,6 +121,11 @@ end note
 
 note bottom of Transfer
   Idempotency key is scoped by tenant.
+  Request hash detects same-key/different-body conflicts.
+end note
+
+note bottom of TransferRiskPolicy
+  Risk limits are externalized in application.yaml.
 end note
 
 @enduml

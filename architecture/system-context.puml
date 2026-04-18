@@ -8,8 +8,9 @@ skinparam defaultTextAlignment center
 actor "API Client\n(Postman / UI / Partner)" as Client
 
 rectangle "SafeTransfer\nSpring Boot Application" as App {
-  rectangle "REST API" as RestApi
+  rectangle "REST API\nOpenAPI / Swagger UI" as RestApi
   rectangle "Wallet, Transfer,\nLedger, Outbox, Audit" as Modules
+  rectangle "Configuration\napplication.yaml" as Config
 }
 
 database "PostgreSQL" as Postgres
@@ -18,6 +19,7 @@ rectangle "Metrics Backend\n(Prometheus compatible)" as Metrics
 
 Client --> RestApi : HTTP JSON\nwallets, deposits, transfers
 RestApi --> Modules : application use cases
+Config --> Modules : risk limits\nKafka publishing mode\noutbox settings
 Modules --> Postgres : transactional state\nwallet, ledger, transfer,\noutbox, audit
 Modules --> Kafka : transfer.completed events\nwhen Kafka publishing enabled
 Kafka --> Modules : audit listener consumes events
@@ -27,6 +29,8 @@ note right of App
   Modular monolith.
   Domain modules are separated in code,
   but deployed as one process.
+  API documentation is generated from
+  contract interfaces implemented by controllers.
 end note
 
 note bottom of Postgres

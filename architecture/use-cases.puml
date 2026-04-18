@@ -14,7 +14,9 @@ rectangle "SafeTransfer" {
   usecase "Get Balance" as UC_GetBalance
   usecase "Deposit Money" as UC_Deposit
   usecase "Create Transfer" as UC_Transfer
+  usecase "Validate Transfer Risk Limit" as UC_RiskLimit
   usecase "Get Transfer" as UC_GetTransfer
+  usecase "Read OpenAPI Documentation" as UC_OpenApi
   usecase "Retry Outbox Publishing" as UC_Outbox
   usecase "Publish Transfer Event" as UC_Publish
   usecase "Record Audit Event" as UC_Audit
@@ -27,8 +29,10 @@ Client --> UC_GetBalance
 Client --> UC_Deposit
 Client --> UC_Transfer
 Client --> UC_GetTransfer
+Client --> UC_OpenApi
 
 UC_Transfer .> UC_GetBalance : validates funds
+UC_Transfer .> UC_RiskLimit : enforces configured limit
 UC_Transfer .> UC_Publish : creates outbox event
 UC_Outbox .> UC_Publish : dispatches event
 UC_Publish .> UC_Audit : consumed asynchronously
@@ -40,6 +44,11 @@ Ops --> UC_Outbox
 note bottom of UC_Transfer
   Transfer is idempotent by tenant + idempotency key.
   Reusing the same key returns the existing transfer.
+  Reusing the key with a different request returns 409 Conflict.
+end note
+
+note bottom of UC_RiskLimit
+  Max single transfer amount is configured in application.yaml.
 end note
 
 note bottom of UC_GetBalance
