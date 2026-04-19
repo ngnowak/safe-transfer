@@ -1,9 +1,5 @@
 package com.nn.safetransfer.e2e;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nn.safetransfer.e2e.client.E2eHttpClient;
-import com.nn.safetransfer.e2e.client.TransferApiClient;
-import com.nn.safetransfer.e2e.client.WalletApiClient;
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
 import com.nn.safetransfer.wallet.domain.WalletStatus;
@@ -20,18 +16,11 @@ import static com.nn.safetransfer.TestAmounts.TWENTY_FIVE;
 import static com.nn.safetransfer.TestAmounts.ZERO;
 import static org.assertj.core.api.Assertions.assertThat;
 
-class WalletFlowE2eTest {
-
-    private static final String BASE_URL = System.getenv().getOrDefault("SAFETRANSFER_BASE_URL", "http://localhost:8080");
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
-    private static final E2eHttpClient HTTP_CLIENT = new E2eHttpClient(BASE_URL, OBJECT_MAPPER);
-    private static final WalletApiClient WALLET_API_CLIENT = new WalletApiClient(HTTP_CLIENT);
-    private static final TransferApiClient TRANSFER_API_CLIENT = new TransferApiClient(HTTP_CLIENT);
-    public static final String HEALTH_PATH = "/actuator/health";
+class WalletFlowE2eTest extends E2eTestBase {
 
     @BeforeAll
     static void shouldReachApplication() throws Exception {
-        var response = HTTP_CLIENT.get(HEALTH_PATH);
+        var response = ACTUATOR_API_CLIENT.getHealthStatus();
         assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
     }
 

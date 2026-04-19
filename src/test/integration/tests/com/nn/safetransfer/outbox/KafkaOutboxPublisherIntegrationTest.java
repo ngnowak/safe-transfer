@@ -1,6 +1,5 @@
 package com.nn.safetransfer.outbox;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.audit.application.AuditKafkaListener;
 import com.nn.safetransfer.annotation.IntegrationTest;
 import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEventRepository;
@@ -28,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -73,7 +73,7 @@ class KafkaOutboxPublisherIntegrationTest {
     private OutboxEventMapper outboxEventMapper;
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private JsonMapper jsonMapper;
 
     @Autowired
     private SpringDataOutboxEventRepository outboxEventRepository;
@@ -164,7 +164,7 @@ class KafkaOutboxPublisherIntegrationTest {
         assertThat(transferResult.isSuccess()).isTrue();
 
         var outboxEvent = outboxEventMapper.toDomain(outboxEventRepository.findAll().getFirst());
-        var kafkaMessage = objectMapper.writeValueAsString(outboxEvent);
+        var kafkaMessage = jsonMapper.writeValueAsString(outboxEvent);
 
         auditKafkaListener.consume(kafkaMessage);
         auditKafkaListener.consume(kafkaMessage);

@@ -1,6 +1,5 @@
 package com.nn.safetransfer.observability;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.IntegrationTest;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.infrastructure.persistence.SpringDataWalletRepository;
@@ -13,6 +12,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.UUID;
 
@@ -28,10 +28,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(OutputCaptureExtension.class)
 class LogbookIntegrationTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JsonMapper jsonMapper;
 
     @Autowired
     private SpringDataWalletRepository walletRepository;
@@ -53,7 +54,7 @@ class LogbookIntegrationTest {
         mockMvc.perform(post(path)
                         .with(csrf())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
         // then

@@ -232,23 +232,17 @@ class ConcurrencyIntegrationTest {
         int threadCount = 10;
         var readyLatch = new CountDownLatch(threadCount);
         var startLatch = new CountDownLatch(1);
-        try (var pool = Executors.newFixedThreadPool(threadCount)) {
 
+        try (var pool = Executors.newFixedThreadPool(threadCount)) {
             // when
             var futures = new ArrayList<Future<Result<WalletError, Wallet>>>();
+
             for (int i = 0; i < threadCount; i++) {
                 futures.add(pool.submit(() -> {
                     readyLatch.countDown();
                     startLatch.await();
-                    try {
-                        return transactionTemplate.execute(_ ->
-                                walletApplicationService.handle(
-                                        new CreateWalletCommand(tenantId, customerId, EUR)
-                                )
-                        );
-                    } catch (Exception e) {
-                        return Result.failure(new WalletError.OtherError(e.getMessage()));
-                    }
+
+                    return walletApplicationService.handle(new CreateWalletCommand(tenantId, customerId, EUR));
                 }));
             }
 
@@ -259,15 +253,19 @@ class ConcurrencyIntegrationTest {
             for (var future : futures) {
                 results.add(future.get());
             }
-            pool.shutdown();
 
             // then - exactly 1 wallet in DB
-            var wallets = walletRepository.findAll();
-            assertThat(wallets).hasSize(1);
+            assertThat(walletRepository.count()).isEqualTo(1);
 
-            long successes = results.stream()
-                    .filter(Result::isSuccess).count();
-            assertThat(successes).isGreaterThanOrEqualTo(1);
+            long successes = results.stream().filter(Result::isSuccess).count();
+            long duplicateFailures = results.stream()
+                    .filter(Result::isFailure)
+                    .map(r -> r.getError().orElseThrow())
+                    .filter(WalletError.DuplicateWallet.class::isInstance)
+                    .count();
+
+            assertThat(successes).isEqualTo(1);
+            assertThat(duplicateFailures).isEqualTo(threadCount - 1);
         }
     }
 

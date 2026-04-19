@@ -1,6 +1,5 @@
 package com.nn.safetransfer.outbox;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
 import com.nn.safetransfer.audit.application.AuditConsumer;
 import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEventRepository;
@@ -25,6 +24,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -74,7 +74,8 @@ class OutboxPublisherFailureIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    @Autowired
+    private JsonMapper jsonMapper;
 
     @AfterEach
     void cleanUp() {
@@ -175,7 +176,7 @@ class OutboxPublisherFailureIntegrationTest {
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, UUID.randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
 
         assertThat(outboxEventRepository.findAll()).hasSize(1);
@@ -184,20 +185,20 @@ class OutboxPublisherFailureIntegrationTest {
     private String createWallet(UUID tenantId, String currency) throws Exception {
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new CreateWalletRequest(UUID.randomUUID(), currency)
                         )))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        return objectMapper.readValue(
+        return jsonMapper.readValue(
                 result.getResponse().getContentAsString(), WalletResponse.class).walletId();
     }
 
     private void deposit(UUID tenantId, String walletId, BigDecimal amount, String currency) throws Exception {
         mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new DepositRequest(amount, currency, "Setup deposit")
                         )))
                 .andExpect(status().isOk());

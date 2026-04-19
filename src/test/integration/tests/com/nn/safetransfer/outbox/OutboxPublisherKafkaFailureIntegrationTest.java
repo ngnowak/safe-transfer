@@ -1,6 +1,5 @@
 package com.nn.safetransfer.outbox;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.IntegrationTest;
 import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEventRepository;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
@@ -12,8 +11,8 @@ import com.nn.safetransfer.outbox.infrastructure.persistence.SpringDataOutboxEve
 import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.application.TransferService;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
-import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.application.CreateWalletCommand;
+import com.nn.safetransfer.wallet.application.DepositCommand;
 import com.nn.safetransfer.wallet.application.DepositService;
 import com.nn.safetransfer.wallet.application.WalletApplicationService;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
@@ -35,6 +34,7 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Map;
 import java.util.UUID;
@@ -167,7 +167,7 @@ class OutboxPublisherKafkaFailureIntegrationTest {
 
         @Bean
         @Primary
-        OutboxEventDispatcher unreachableKafkaDispatcher(ObjectMapper objectMapper) {
+        OutboxEventDispatcher unreachableKafkaDispatcher(JsonMapper jsonMapper) {
             var producerFactory = new DefaultKafkaProducerFactory<String, String>(Map.of(
                     ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:1",
                     ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
@@ -182,7 +182,7 @@ class OutboxPublisherKafkaFailureIntegrationTest {
                     true,
                     new ApplicationKafkaProperties.Topics("wallet.transfer.completed")
             );
-            return new KafkaOutboxEventDispatcher(kafkaTemplate, objectMapper, properties);
+            return new KafkaOutboxEventDispatcher(kafkaTemplate, jsonMapper, properties);
         }
     }
 }

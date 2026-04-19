@@ -1,6 +1,5 @@
 package com.nn.safetransfer.transfer.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.IntegrationTest;
 import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEventRepository;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
@@ -18,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -43,10 +43,11 @@ class TransferRiskPolicyDisabledIntegrationTest {
     private static final String DEPOSITS_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/deposits";
     private static final String TRANSFERS_PATH = "/api/v1/tenants/{tenantId}/transfers";
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JsonMapper jsonMapper;
 
     @Autowired
     private SpringDataWalletRepository walletRepository;
@@ -92,12 +93,12 @@ class TransferRiskPolicyDisabledIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
         // then
-        var response = objectMapper.readValue(result.getResponse().getContentAsString(), TransferResponse.class);
+        var response = jsonMapper.readValue(result.getResponse().getContentAsString(), TransferResponse.class);
         assertAll(
                 () -> assertThat(response.amount()).isEqualByComparingTo(TEN_THOUSAND_01),
                 () -> assertThat(response.status()).isEqualTo(COMPLETED.name()),
@@ -110,19 +111,19 @@ class TransferRiskPolicyDisabledIntegrationTest {
     private String createWallet(UUID tenantId) throws Exception {
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new CreateWalletRequest(randomUUID(), EUR.name())
                         )))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        return objectMapper.readValue(result.getResponse().getContentAsString(), WalletResponse.class).walletId();
+        return jsonMapper.readValue(result.getResponse().getContentAsString(), WalletResponse.class).walletId();
     }
 
     private void deposit(UUID tenantId, String walletId, BigDecimal amount) throws Exception {
         mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new DepositRequest(amount, EUR.name(), "Risk disabled setup")
                         )))
                 .andExpect(status().isOk());

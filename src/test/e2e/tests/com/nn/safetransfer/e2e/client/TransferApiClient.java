@@ -11,15 +11,13 @@ import java.util.UUID;
 
 import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY;
 
-public class TransferApiClient {
+public class TransferApiClient extends E2eHttpClient {
 
     private static final String TRANSFERS_PATH = "/api/v1/tenants/%s/transfers";
     private static final String TRANSFER_BY_ID_PATH = TRANSFERS_PATH + "/%s";
 
-    private final E2eHttpClient httpClient;
-
-    public TransferApiClient(E2eHttpClient httpClient) {
-        this.httpClient = httpClient;
+    public TransferApiClient(String baseUrl) {
+        super(baseUrl);
     }
 
     public TransferResponse createTransfer(
@@ -44,7 +42,7 @@ public class TransferApiClient {
             String idempotencyKey,
             HttpStatus expectedStatus
     ) throws IOException, InterruptedException {
-        return httpClient.post(
+        return post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,
                 Map.of(IDEMPOTENCY_KEY, idempotencyKey),
@@ -66,7 +64,7 @@ public class TransferApiClient {
             CreateTransferRequest request,
             String idempotencyKey
     ) throws IOException, InterruptedException {
-        return httpClient.post(
+        return post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,
                 Map.of(IDEMPOTENCY_KEY, idempotencyKey),
@@ -80,7 +78,7 @@ public class TransferApiClient {
             CreateTransferRequest request,
             String idempotencyKey
     ) throws IOException, InterruptedException {
-        return httpClient.post(
+        return post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,
                 Map.of(IDEMPOTENCY_KEY, idempotencyKey),
@@ -94,7 +92,7 @@ public class TransferApiClient {
             CreateTransferRequest request,
             String idempotencyKey
     ) throws IOException, InterruptedException {
-        return httpClient.post(
+        return post(
                 TRANSFERS_PATH.formatted(tenantId),
                 request,
                 Map.of(IDEMPOTENCY_KEY, idempotencyKey),
@@ -104,6 +102,6 @@ public class TransferApiClient {
     }
 
     public TransferResponse getTransfer(UUID tenantId, UUID transferId) throws IOException, InterruptedException {
-        return httpClient.get(TRANSFER_BY_ID_PATH.formatted(tenantId, transferId), HttpStatus.OK.value(), TransferResponse.class);
+        return get(TRANSFER_BY_ID_PATH.formatted(tenantId, transferId), HttpStatus.OK.value(), TransferResponse.class);
     }
 }

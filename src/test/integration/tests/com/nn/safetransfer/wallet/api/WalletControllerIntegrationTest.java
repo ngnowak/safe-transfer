@@ -1,6 +1,5 @@
 package com.nn.safetransfer.wallet.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
 import com.nn.safetransfer.common.api.ErrorDto;
 import com.nn.safetransfer.ledger.infrastructure.persistence.SpringDataLedgerEntryRepository;
@@ -16,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -50,10 +50,12 @@ class WalletControllerIntegrationTest {
     private static final String BALANCE_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/balance";
     private static final String DEPOSITS_PATH = "/api/v1/tenants/{tenantId}/wallets/{walletId}/deposits";
     private static final String TRANSFERS_PATH = "/api/v1/tenants/{tenantId}/transfers";
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JsonMapper jsonMapper;
 
     @Autowired
     private SpringDataWalletRepository walletRepository;
@@ -86,7 +88,7 @@ class WalletControllerIntegrationTest {
                 .andReturn();
 
         // then
-        var response = objectMapper.readValue(
+        var response = jsonMapper.readValue(
                 result.getResponse().getContentAsString(), WalletResponse.class
         );
 
@@ -128,7 +130,7 @@ class WalletControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -150,7 +152,7 @@ class WalletControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -202,7 +204,7 @@ class WalletControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -222,13 +224,13 @@ class WalletControllerIntegrationTest {
         var currency = USD.name();
         var createResult = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new CreateWalletRequest(randomUUID(), currency)
                         )))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        var createdWallet = objectMapper.readValue(
+        var createdWallet = jsonMapper.readValue(
                 createResult.getResponse().getContentAsString(), WalletResponse.class
         );
 
@@ -238,7 +240,7 @@ class WalletControllerIntegrationTest {
                 .andReturn();
 
         // then
-        var response = objectMapper.readValue(
+        var response = jsonMapper.readValue(
                 result.getResponse().getContentAsString(), WalletResponse.class
         );
 
@@ -279,13 +281,13 @@ class WalletControllerIntegrationTest {
         var otherTenantId = randomUUID();
         var createResult = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new CreateWalletRequest(randomUUID(), EUR.name())
                         )))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        var createdWallet = objectMapper.readValue(
+        var createdWallet = jsonMapper.readValue(
                 createResult.getResponse().getContentAsString(), WalletResponse.class
         );
 
@@ -310,7 +312,7 @@ class WalletControllerIntegrationTest {
                 .andReturn();
 
         // then
-        var response = objectMapper.readValue(
+        var response = jsonMapper.readValue(
                 result.getResponse().getContentAsString(), DepositResponse.class
         );
 
@@ -346,14 +348,14 @@ class WalletControllerIntegrationTest {
         // when
         mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new DepositRequest(ONE_HUNDRED, EUR.name(), "First")
                         )))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new DepositRequest(TWO_HUNDRED_FIFTY_50, EUR.name(), "Second")
                         )))
                 .andExpect(status().isOk());
@@ -373,7 +375,7 @@ class WalletControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(depositRequest)))
+                        .content(jsonMapper.writeValueAsString(depositRequest)))
                 .andExpect(status().isNotFound())
                 .andReturn();
 
@@ -398,7 +400,7 @@ class WalletControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(depositRequest)))
+                        .content(jsonMapper.writeValueAsString(depositRequest)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -423,7 +425,7 @@ class WalletControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(depositRequest)))
+                        .content(jsonMapper.writeValueAsString(depositRequest)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -447,7 +449,7 @@ class WalletControllerIntegrationTest {
         // when / then - create EUR wallet
         mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new CreateWalletRequest(customerId, EUR.name())
                         )))
                 .andExpect(status().isOk());
@@ -455,7 +457,7 @@ class WalletControllerIntegrationTest {
         // create PLN wallet for same customer
         mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new CreateWalletRequest(customerId, PLN.name())
                         )))
                 .andExpect(status().isOk());
@@ -476,7 +478,7 @@ class WalletControllerIntegrationTest {
                 .andReturn();
 
         // then
-        var response = objectMapper.readValue(
+        var response = jsonMapper.readValue(
                 result.getResponse().getContentAsString(), BalanceResponse.class
         );
 
@@ -500,7 +502,7 @@ class WalletControllerIntegrationTest {
                 .andReturn();
 
         // then
-        var response = objectMapper.readValue(
+        var response = jsonMapper.readValue(
                 result.getResponse().getContentAsString(), BalanceResponse.class
         );
 
@@ -551,7 +553,7 @@ class WalletControllerIntegrationTest {
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(transferRequest)))
+                        .content(jsonMapper.writeValueAsString(transferRequest)))
                 .andExpect(status().isCreated());
 
         // when
@@ -564,10 +566,10 @@ class WalletControllerIntegrationTest {
                 .andReturn();
 
         // then
-        var sourceBalance = objectMapper.readValue(
+        var sourceBalance = jsonMapper.readValue(
                 sourceResult.getResponse().getContentAsString(), BalanceResponse.class
         );
-        var destinationBalance = objectMapper.readValue(
+        var destinationBalance = jsonMapper.readValue(
                 destinationResult.getResponse().getContentAsString(), BalanceResponse.class
         );
 
@@ -580,13 +582,13 @@ class WalletControllerIntegrationTest {
     private String createWallet(UUID tenantId, String currency) throws Exception {
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new CreateWalletRequest(randomUUID(), currency)
                         )))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        return objectMapper.readValue(
+        return jsonMapper.readValue(
                 result.getResponse().getContentAsString(), WalletResponse.class
         ).walletId();
     }
@@ -594,13 +596,13 @@ class WalletControllerIntegrationTest {
     private void deposit(UUID tenantId, String walletId, BigDecimal amount, String currency) throws Exception {
         mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new DepositRequest(amount, currency, null)
                         )))
                 .andExpect(status().isOk());
     }
 
-    private ErrorDto readError(String responseBody) throws Exception {
-        return objectMapper.readValue(responseBody, ErrorDto.class);
+    private ErrorDto readError(String responseBody) {
+        return jsonMapper.readValue(responseBody, ErrorDto.class);
     }
 }

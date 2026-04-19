@@ -1,14 +1,14 @@
 package com.nn.safetransfer.outbox.application;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.audit.application.AuditConsumer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.kafka.core.KafkaTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -62,8 +62,8 @@ class OutboxEventDispatcherConfigurationTest {
         }
 
         @Bean
-        ObjectMapper objectMapper() {
-            return new ObjectMapper().findAndRegisterModules();
+        JsonMapper jsonMapper() {
+            return new JsonMapper();
         }
     }
 }

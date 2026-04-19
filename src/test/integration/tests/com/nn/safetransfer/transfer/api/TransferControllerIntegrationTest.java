@@ -1,6 +1,5 @@
 package com.nn.safetransfer.transfer.api;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.annotation.WebSliceTest;
 import com.nn.safetransfer.audit.infrastructure.persistence.SpringDataAuditEventRepository;
 import com.nn.safetransfer.common.api.ErrorDto;
@@ -23,6 +22,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -71,8 +71,6 @@ class TransferControllerIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-
     @Autowired
     private SpringDataWalletRepository walletRepository;
 
@@ -93,6 +91,9 @@ class TransferControllerIntegrationTest {
 
     @Autowired
     private MeterRegistry meterRegistry;
+
+    @Autowired
+    private JsonMapper jsonMapper;
 
     @AfterEach
     void cleanUp() {
@@ -123,12 +124,12 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
         // then
-        var response = objectMapper.readValue(
+        var response = jsonMapper.readValue(
                 result.getResponse().getContentAsString(), TransferResponse.class
         );
 
@@ -201,11 +202,11 @@ class TransferControllerIntegrationTest {
         var transferResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        var transferResponse = objectMapper.readValue(
+        var transferResponse = jsonMapper.readValue(
                 transferResult.getResponse().getContentAsString(), TransferResponse.class
         );
         var createdOutboxEvent = outboxEventRepository.findAll().getFirst();
@@ -259,7 +260,7 @@ class TransferControllerIntegrationTest {
         var firstResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -267,15 +268,15 @@ class TransferControllerIntegrationTest {
         var secondResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andReturn();
 
         // then
-        var firstResponse = objectMapper.readValue(
+        var firstResponse = jsonMapper.readValue(
                 firstResult.getResponse().getContentAsString(), TransferResponse.class
         );
-        var secondResponse = objectMapper.readValue(
+        var secondResponse = jsonMapper.readValue(
                 secondResult.getResponse().getContentAsString(), TransferResponse.class
         );
 
@@ -321,7 +322,7 @@ class TransferControllerIntegrationTest {
         var firstResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(firstRequest)))
+                        .content(jsonMapper.writeValueAsString(firstRequest)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -329,12 +330,12 @@ class TransferControllerIntegrationTest {
         var secondResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(differentRequest)))
+                        .content(jsonMapper.writeValueAsString(differentRequest)))
                 .andExpect(status().isConflict())
                 .andReturn();
 
         // then
-        var firstResponse = objectMapper.readValue(firstResult.getResponse().getContentAsString(), TransferResponse.class);
+        var firstResponse = jsonMapper.readValue(firstResult.getResponse().getContentAsString(), TransferResponse.class);
         var error = readError(secondResult.getResponse().getContentAsString());
         var expectedErrorMsg = "Idempotency key '%s' was already used with a different transfer request".formatted(idempotencyKey);
 
@@ -371,7 +372,7 @@ class TransferControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -401,7 +402,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, " ")
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -431,7 +432,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, "a".repeat(IDEMPOTENCY_KEY_MAX_LENGTH + 1))
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -479,19 +480,19 @@ class TransferControllerIntegrationTest {
         var firstResult = mockMvc.perform(post(TRANSFERS_PATH, firstTenantId)
                         .header(IDEMPOTENCY_KEY, sharedIdempotencyKey)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(firstRequest)))
+                        .content(jsonMapper.writeValueAsString(firstRequest)))
                 .andExpect(status().isCreated())
                 .andReturn();
         var secondResult = mockMvc.perform(post(TRANSFERS_PATH, secondTenantId)
                         .header(IDEMPOTENCY_KEY, sharedIdempotencyKey)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(secondRequest)))
+                        .content(jsonMapper.writeValueAsString(secondRequest)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
         // then
-        var firstResponse = objectMapper.readValue(firstResult.getResponse().getContentAsString(), TransferResponse.class);
-        var secondResponse = objectMapper.readValue(secondResult.getResponse().getContentAsString(), TransferResponse.class);
+        var firstResponse = jsonMapper.readValue(firstResult.getResponse().getContentAsString(), TransferResponse.class);
+        var secondResponse = jsonMapper.readValue(secondResult.getResponse().getContentAsString(), TransferResponse.class);
 
         assertAll(
                 () -> assertThat(firstResponse.transferId()).isNotEqualTo(secondResponse.transferId()),
@@ -520,17 +521,17 @@ class TransferControllerIntegrationTest {
         var createResult = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        var createdTransfer = objectMapper.readValue(createResult.getResponse().getContentAsString(), TransferResponse.class);
+        var createdTransfer = jsonMapper.readValue(createResult.getResponse().getContentAsString(), TransferResponse.class);
 
         var result = mockMvc.perform(get(TRANSFER_PATH, tenantId, createdTransfer.transferId()))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        var response = objectMapper.readValue(result.getResponse().getContentAsString(), TransferResponse.class);
+        var response = jsonMapper.readValue(result.getResponse().getContentAsString(), TransferResponse.class);
 
         assertAll(
                 () -> assertThat(response.transferId()).isEqualTo(createdTransfer.transferId()),
@@ -580,7 +581,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -612,7 +613,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andReturn();
 
@@ -647,7 +648,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andReturn();
 
@@ -687,7 +688,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andReturn();
 
@@ -724,7 +725,7 @@ class TransferControllerIntegrationTest {
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
 
         assertThat(counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS))
@@ -754,7 +755,7 @@ class TransferControllerIntegrationTest {
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
 
         assertThat(counterCount(MetricName.TRANSFER_CREATED, MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS))
@@ -781,7 +782,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
                 .andReturn();
 
@@ -815,7 +816,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
                 .andReturn();
 
@@ -849,7 +850,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -883,7 +884,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -913,7 +914,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -943,7 +944,7 @@ class TransferControllerIntegrationTest {
         var result = mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
@@ -1013,7 +1014,7 @@ class TransferControllerIntegrationTest {
         mockMvc.perform(post(TRANSFERS_PATH, tenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());
 
         // then
@@ -1043,20 +1044,20 @@ class TransferControllerIntegrationTest {
         mockMvc.perform(post(TRANSFERS_PATH, otherTenantId)
                         .header(IDEMPOTENCY_KEY, randomUUID().toString())
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());
     }
 
     private String createWallet(UUID tenantId, String currency) throws Exception {
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new CreateWalletRequest(randomUUID(), currency)
                         )))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        return objectMapper.readValue(
+        return jsonMapper.readValue(
                 result.getResponse().getContentAsString(), WalletResponse.class
         ).walletId();
     }
@@ -1064,14 +1065,14 @@ class TransferControllerIntegrationTest {
     private void deposit(UUID tenantId, String walletId, BigDecimal amount, String currency) throws Exception {
         mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
+                        .content(jsonMapper.writeValueAsString(
                                 new DepositRequest(amount, currency, "Test deposit")
                         )))
                 .andExpect(status().isOk());
     }
 
-    private ErrorDto readError(String responseBody) throws Exception {
-        return objectMapper.readValue(responseBody, ErrorDto.class);
+    private ErrorDto readError(String responseBody) {
+        return jsonMapper.readValue(responseBody, ErrorDto.class);
     }
 
     private double counterCount(MetricName meterName, MetricTag tagKey, TransferMetricOutcome tagValue) {

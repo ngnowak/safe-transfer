@@ -1,8 +1,8 @@
 package com.nn.safetransfer.e2e.client;
 
 import com.nn.safetransfer.common.api.ErrorDto;
-import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.BalanceResponse;
+import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositResponse;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
@@ -13,21 +13,19 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
-public class WalletApiClient {
+public class WalletApiClient extends E2eHttpClient {
 
     private static final String WALLETS_PATH = "/api/v1/tenants/%s/wallets";
     private static final String WALLET_BY_ID_PATH = WALLETS_PATH + "/%s";
     private static final String WALLET_BALANCE_PATH = WALLET_BY_ID_PATH + "/balance";
     private static final String WALLET_DEPOSITS_PATH = WALLET_BY_ID_PATH + "/deposits";
 
-    private final E2eHttpClient httpClient;
-
-    public WalletApiClient(E2eHttpClient httpClient) {
-        this.httpClient = httpClient;
+    public WalletApiClient(String baseUrl) {
+        super(baseUrl);
     }
 
     public WalletResponse createWallet(UUID tenantId, UUID customerId, String currency) throws IOException, InterruptedException {
-        return httpClient.post(
+        return post(
                 WALLETS_PATH.formatted(tenantId),
                 new CreateWalletRequest(customerId, currency),
                 Map.of(),
@@ -37,7 +35,7 @@ public class WalletApiClient {
     }
 
     public ErrorDto createWalletError(UUID tenantId, UUID customerId, String currency) throws IOException, InterruptedException {
-        return httpClient.post(
+        return post(
                 WALLETS_PATH.formatted(tenantId),
                 new CreateWalletRequest(customerId, currency),
                 Map.of(),
@@ -47,15 +45,15 @@ public class WalletApiClient {
     }
 
     public WalletResponse getWallet(UUID tenantId, UUID walletId) throws IOException, InterruptedException {
-        return httpClient.get(WALLET_BY_ID_PATH.formatted(tenantId, walletId), HttpStatus.OK.value(), WalletResponse.class);
+        return get(WALLET_BY_ID_PATH.formatted(tenantId, walletId), HttpStatus.OK.value(), WalletResponse.class);
     }
 
     public ErrorDto getWalletNotFound(UUID tenantId, UUID walletId) throws IOException, InterruptedException {
-        return httpClient.get(WALLET_BY_ID_PATH.formatted(tenantId, walletId), HttpStatus.NOT_FOUND.value(), ErrorDto.class);
+        return get(WALLET_BY_ID_PATH.formatted(tenantId, walletId), HttpStatus.NOT_FOUND.value(), ErrorDto.class);
     }
 
     public BalanceResponse getBalance(UUID tenantId, UUID walletId) throws IOException, InterruptedException {
-        return httpClient.get(WALLET_BALANCE_PATH.formatted(tenantId, walletId), HttpStatus.OK.value(), BalanceResponse.class);
+        return get(WALLET_BALANCE_PATH.formatted(tenantId, walletId), HttpStatus.OK.value(), BalanceResponse.class);
     }
 
     public DepositResponse deposit(
@@ -65,7 +63,7 @@ public class WalletApiClient {
             String currency,
             String reference
     ) throws IOException, InterruptedException {
-        return httpClient.post(
+        return post(
                 WALLET_DEPOSITS_PATH.formatted(tenantId, walletId),
                 new DepositRequest(amount, currency, reference),
                 Map.of(),
@@ -81,7 +79,7 @@ public class WalletApiClient {
             String currency,
             String reference
     ) throws IOException, InterruptedException {
-        return httpClient.post(
+        return post(
                 WALLET_DEPOSITS_PATH.formatted(tenantId, walletId),
                 new DepositRequest(amount, currency, reference),
                 Map.of(),

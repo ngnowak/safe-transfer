@@ -1,10 +1,5 @@
 package com.nn.safetransfer.e2e;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nn.safetransfer.e2e.client.E2eHttpClient;
-import com.nn.safetransfer.e2e.client.TransferApiClient;
-import com.nn.safetransfer.e2e.client.WalletApiClient;
 import com.nn.safetransfer.common.metrics.MetricName;
 import com.nn.safetransfer.common.metrics.MetricTag;
 import com.nn.safetransfer.common.metrics.TransferMetricOutcome;
@@ -17,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
-import java.net.URLEncoder;
 import java.time.Duration;
 import java.util.UUID;
 
@@ -29,24 +23,15 @@ import static com.nn.safetransfer.TestAmounts.ZERO;
 import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
 import static com.nn.safetransfer.transfer.domain.TransferStatus.COMPLETED;
 import static com.nn.safetransfer.wallet.domain.CurrencyCode.EUR;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.UUID.randomUUID;
-import static org.awaitility.Awaitility.await;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
-class TransferFlowE2eTest {
-
-    private static final String BASE_URL = System.getenv().getOrDefault("SAFETRANSFER_BASE_URL", "http://localhost:8080");
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
-    private static final E2eHttpClient HTTP_CLIENT = new E2eHttpClient(BASE_URL, OBJECT_MAPPER);
-    private static final WalletApiClient WALLET_API_CLIENT = new WalletApiClient(HTTP_CLIENT);
-    private static final TransferApiClient TRANSFER_API_CLIENT = new TransferApiClient(HTTP_CLIENT);
-    public static final String GET_HEALTH_PATH = "/actuator/health";
-    public static final String GET_METRICS_PATH = "/actuator/metrics/%s?tag=%s";
+class TransferFlowE2eTest extends E2eTestBase {
 
     @BeforeAll
     static void shouldReachApplication() throws Exception {
-        var response = HTTP_CLIENT.get(GET_HEALTH_PATH);
+        var response = ACTUATOR_API_CLIENT.getHealthStatus();
         assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
     }
 
@@ -59,8 +44,8 @@ class TransferFlowE2eTest {
         deposit(tenantId, sourceWallet.walletId(), ONE_HUNDRED, EUR, "e2e deposit");
         assertBalance(tenantId, sourceWallet.walletId(), ONE_HUNDRED);
 
-        var successCounterBefore = metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS));
-        var failureCounterBefore = metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS));
+        var successCounterBefore = ACTUATOR_API_CLIENT.metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS));
+        var failureCounterBefore = ACTUATOR_API_CLIENT.metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS));
 
         var successfulTransfer = TRANSFER_API_CLIENT.createTransfer(
                 tenantId,
@@ -97,9 +82,9 @@ class TransferFlowE2eTest {
                         .formatted(sourceWallet.walletId(), SEVENTY_FIVE, ONE_THOUSAND)
         );
 
-        assertThat(metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS)))
+        assertThat(ACTUATOR_API_CLIENT.metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.SUCCESS)))
                 .isEqualTo(successCounterBefore + 1.0d);
-        assertThat(metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS)))
+        assertThat(ACTUATOR_API_CLIENT.metricCount(MetricName.TRANSFER_CREATED, metricTag(MetricTag.OUTCOME, TransferMetricOutcome.INSUFFICIENT_FUNDS)))
                 .isEqualTo(failureCounterBefore + 1.0d);
     }
 
@@ -110,7 +95,7 @@ class TransferFlowE2eTest {
         var destinationWallet = createWallet(tenantId, randomUUID(), EUR);
         deposit(tenantId, sourceWallet.walletId(), ONE_HUNDRED, EUR, "e2e outbox deposit");
 
-        var outboxPublishCounterBefore = metricCount(
+        var outboxPublishCounterBefore = ACTUATOR_API_CLIENT.metricCount(
                 MetricName.OUTBOX_PUBLISH_SUCCESS,
                 metricTag(MetricTag.EVENT_TYPE, TRANSFER_COMPLETED.name())
         );
@@ -124,7 +109,7 @@ class TransferFlowE2eTest {
         assertThat(transfer.status()).isEqualTo(COMPLETED.name());
 
         await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
-                assertThat(metricCount(MetricName.OUTBOX_PUBLISH_SUCCESS, metricTag(MetricTag.EVENT_TYPE, TRANSFER_COMPLETED.name())))
+                assertThat(ACTUATOR_API_CLIENT.metricCount(MetricName.OUTBOX_PUBLISH_SUCCESS, metricTag(MetricTag.EVENT_TYPE, TRANSFER_COMPLETED.name())))
                         .isGreaterThan(outboxPublishCounterBefore)
         );
     }
@@ -324,21 +309,6 @@ class TransferFlowE2eTest {
         assertThat(response.transferId()).isEqualTo(transferId.toString());
         assertThat(response.tenantId()).isEqualTo(tenantId.toString());
         assertThat(response.status()).isEqualTo(expectedStatus.name());
-    }
-
-    private double metricCount(MetricName metricName, String tag) throws Exception {
-        var encodedTag = URLEncoder.encode(tag, UTF_8);
-        var response = HTTP_CLIENT.get(GET_METRICS_PATH.formatted(metricName.getValue(), encodedTag));
-
-        if (response.statusCode() == HttpStatus.NOT_FOUND.value()) {
-            return 0.0d;
-        }
-
-        assertThat(response.statusCode())
-                .withFailMessage("Expected metric endpoint to return 200 but got %s. Body: %s", response.statusCode(), response.body())
-                .isEqualTo(HttpStatus.OK.value());
-        JsonNode body = OBJECT_MAPPER.readTree(response.body());
-        return body.path("measurements").get(0).path("value").asDouble();
     }
 
     private String metricTag(MetricTag tag, TransferMetricOutcome outcome) {

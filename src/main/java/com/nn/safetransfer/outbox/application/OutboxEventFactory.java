@@ -1,23 +1,25 @@
 package com.nn.safetransfer.outbox.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn.safetransfer.outbox.application.payload.TransferCompletedPayload;
 import com.nn.safetransfer.outbox.domain.OutboxEvent;
 import com.nn.safetransfer.transfer.domain.event.TransferCompletedDomainEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 import static com.nn.safetransfer.outbox.domain.EventType.TRANSFER_COMPLETED;
 import static com.nn.safetransfer.outbox.domain.OutboxAggregateType.TRANSFER;
 import static com.nn.safetransfer.outbox.domain.OutboxStatus.NEW;
 import static java.util.UUID.randomUUID;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OutboxEventFactory {
 
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
 
     public OutboxEvent from(TransferCompletedDomainEvent event) {
         var eventId = randomUUID();
@@ -51,9 +53,11 @@ public class OutboxEventFactory {
 
     private String serialize(Object payload) {
         try {
-            return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Failed to serialize outbox payload", ex);
+            return jsonMapper.writeValueAsString(payload);
+        } catch (JacksonException ex) {
+            var errorMsg = "Failed to serialize outbox payload";
+            log.warn(errorMsg, ex);
+            throw new IllegalStateException(errorMsg, ex);
         }
     }
 }
