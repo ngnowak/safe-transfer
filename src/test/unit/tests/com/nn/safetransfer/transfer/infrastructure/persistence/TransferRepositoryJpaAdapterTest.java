@@ -43,6 +43,7 @@ class TransferRepositoryJpaAdapterTest {
                 new BigDecimal("10.00"),
                 EUR,
                 "idem",
+                "test-hash",
                 "ref"
         );
         var savedEntity = TransferJpa.builder().build();
@@ -53,6 +54,7 @@ class TransferRepositoryJpaAdapterTest {
                 transfer.getAmount(),
                 transfer.getCurrency(),
                 transfer.getIdempotencyKey(),
+                transfer.getRequestHash(),
                 transfer.getReference()
         );
 
@@ -78,6 +80,7 @@ class TransferRepositoryJpaAdapterTest {
                 new BigDecimal("10.00"),
                 EUR,
                 "idem",
+                "test-hash",
                 "ref"
         );
 
@@ -117,6 +120,7 @@ class TransferRepositoryJpaAdapterTest {
                 new BigDecimal("10.00"),
                 EUR,
                 "idem",
+                "test-hash",
                 "ref"
         );
 

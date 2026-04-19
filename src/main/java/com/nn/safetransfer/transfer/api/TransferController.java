@@ -51,12 +51,12 @@ public class TransferController implements TransferApi {
             @PathVariable UUID tenantId,
             @PathVariable UUID transferId
     ) {
-        var query = getGetTransferQuery(tenantId, transferId);
+        var query = buildGetTransferQuery(tenantId, transferId);
         var result = queryTransferUseCase.handle(query);
         return transferResultMapper.toTransferResponse(result);
     }
 
-    private GetTransferQuery getGetTransferQuery(UUID tenantId, UUID transferId) {
+    private GetTransferQuery buildGetTransferQuery(UUID tenantId, UUID transferId) {
         return GetTransferQuery.builder()
                 .tenantId(new TenantId(tenantId))
                 .transferId(new TransferId(transferId))

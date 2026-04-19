@@ -29,7 +29,7 @@ class TransferTest {
         // when
         var transfer = Transfer.completed(
                 tenantId, sourceWalletId, destinationWalletId,
-                amount, EUR, idempotencyKey, reference
+                amount, EUR, idempotencyKey, "request-hash", reference
         );
 
         // then
@@ -59,7 +59,7 @@ class TransferTest {
         // when
         var transfer = Transfer.completed(
                 TenantId.create(), sourceWalletId, destinationWalletId,
-                new BigDecimal("50.00"), EUR, "key", null
+                new BigDecimal("50.00"), EUR, "key", "test-hash", null
         );
 
         // then
@@ -76,7 +76,7 @@ class TransferTest {
         // when / then
         assertThatThrownBy(() -> Transfer.completed(
                 TenantId.create(), sourceWalletId, destinationWalletId,
-                BigDecimal.ZERO, EUR, "key", null
+                BigDecimal.ZERO, EUR, "key", "test-hash", null
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("amount must be greater than zero");
@@ -91,7 +91,7 @@ class TransferTest {
         // when / then
         assertThatThrownBy(() -> Transfer.completed(
                 TenantId.create(), sourceWalletId, destinationWalletId,
-                new BigDecimal("-10.00"), EUR, "key", null
+                new BigDecimal("-10.00"), EUR, "key", "test-hash", null
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("amount must be greater than zero");
@@ -105,7 +105,7 @@ class TransferTest {
         // when / then
         assertThatThrownBy(() -> Transfer.completed(
                 TenantId.create(), walletId, walletId,
-                new BigDecimal("10.00"), EUR, "key", null
+                new BigDecimal("10.00"), EUR, "key", "test-hash", null
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Source and destination wallets must be different");

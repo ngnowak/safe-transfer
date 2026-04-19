@@ -11,8 +11,8 @@ import com.nn.safetransfer.transfer.api.dto.CreateTransferRequest;
 import com.nn.safetransfer.transfer.application.TransferService;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
-import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.application.CreateWalletCommand;
+import com.nn.safetransfer.wallet.application.DepositCommand;
 import com.nn.safetransfer.wallet.application.DepositService;
 import com.nn.safetransfer.wallet.application.WalletApplicationService;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
@@ -198,7 +198,7 @@ class KafkaOutboxPublisherIntegrationTest {
         transactionTemplate.executeWithoutResult(_ -> depositService.deposit(
                 tenantId,
                 new WalletId(walletId),
-                new DepositRequest(amount, currency.name(), "Kafka setup deposit")
+                new DepositCommand(amount, currency.name(), "Kafka setup deposit")
         ));
     }
 

@@ -6,6 +6,7 @@ import com.nn.safetransfer.ledger.domain.LedgerEntryType;
 import com.nn.safetransfer.wallet.api.dto.BalanceResponse;
 import com.nn.safetransfer.wallet.api.dto.CreateWalletRequest;
 import com.nn.safetransfer.wallet.api.dto.DepositRequest;
+import com.nn.safetransfer.wallet.application.DepositCommand;
 import com.nn.safetransfer.wallet.api.dto.DepositResponse;
 import com.nn.safetransfer.wallet.api.dto.WalletResponse;
 import com.nn.safetransfer.wallet.api.mapper.BalanceResponseMapper;
@@ -142,6 +143,7 @@ class WalletControllerTest {
         var tenantId = UUID.randomUUID();
         var walletId = UUID.randomUUID();
         var request = new DepositRequest(new BigDecimal("100.00"), EUR.name(), "Ref");
+        var expectedCommand = new DepositCommand(request.amount(), request.currency(), request.reference());
         var ledgerEntry = LedgerEntry.credit(
                 new TenantId(tenantId), new WalletId(walletId),
                 new BigDecimal("100.00"), EUR, "Ref"
@@ -157,7 +159,7 @@ class WalletControllerTest {
                 .createdAt(Instant.now())
                 .build();
 
-        given(depositService.deposit(eq(new TenantId(tenantId)), eq(new WalletId(walletId)), eq(request)))
+        given(depositService.deposit(eq(new TenantId(tenantId)), eq(new WalletId(walletId)), eq(expectedCommand)))
                 .willReturn(result);
         given(depositResponseMapper.toDepositResponse(result)).willReturn(expectedResponse);
 
@@ -167,7 +169,7 @@ class WalletControllerTest {
         // then
         assertAll(
                 () -> assertThat(response).isEqualTo(expectedResponse),
-                () -> verify(depositService).deposit(new TenantId(tenantId), new WalletId(walletId), request),
+                () -> verify(depositService).deposit(new TenantId(tenantId), new WalletId(walletId), expectedCommand),
                 () -> verify(depositResponseMapper).toDepositResponse(result)
         );
     }

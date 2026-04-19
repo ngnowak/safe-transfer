@@ -83,7 +83,7 @@ class WalletControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -124,7 +124,7 @@ class WalletControllerIntegrationTest {
 
         mockMvc.perform(post(WALLETS_PATH, tenantId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
         // when
@@ -307,7 +307,7 @@ class WalletControllerIntegrationTest {
         // when
         var result = mockMvc.perform(post(DEPOSITS_PATH, tenantId, walletId)
                         .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(depositRequest)))
+                        .content(jsonMapper.writeValueAsString(depositRequest)))
                 .andExpect(status().isOk())
                 .andReturn();
 

@@ -25,7 +25,7 @@ class QueryTransferUseCaseTest {
     private TransferRepository transferRepository;
 
     @InjectMocks
-    private QueryTransferUseCase queryTransferUseCase;
+    private QueryTransferService queryTransferUseCase;
 
     @Test
     void shouldReturnTransferWhenFound() {
@@ -37,6 +37,7 @@ class QueryTransferUseCaseTest {
                 new BigDecimal("10.00"),
                 EUR,
                 "idem",
+                "test-hash",
                 "ref"
         );
         var query = GetTransferQuery.builder()

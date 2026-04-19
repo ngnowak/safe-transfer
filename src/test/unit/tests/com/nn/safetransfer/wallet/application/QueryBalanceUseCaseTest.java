@@ -30,7 +30,7 @@ class QueryBalanceUseCaseTest {
     private LedgerEntryRepository ledgerEntryRepository;
 
     @InjectMocks
-    private QueryBalanceUseCase queryBalanceUseCase;
+    private QueryBalanceService queryBalanceUseCase;
 
     @Test
     void shouldReturnBalanceWhenWalletExists() {

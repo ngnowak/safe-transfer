@@ -8,8 +8,8 @@ import com.nn.safetransfer.transfer.application.TransferError;
 import com.nn.safetransfer.transfer.application.TransferService;
 import com.nn.safetransfer.transfer.domain.Transfer;
 import com.nn.safetransfer.transfer.infrastructure.persistence.SpringDataTransferRepository;
-import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.application.CreateWalletCommand;
+import com.nn.safetransfer.wallet.application.DepositCommand;
 import com.nn.safetransfer.wallet.application.DepositService;
 import com.nn.safetransfer.wallet.application.WalletApplicationService;
 import com.nn.safetransfer.wallet.application.WalletError;
@@ -291,7 +291,7 @@ class ConcurrencyIntegrationTest {
                             depositService.deposit(
                                     tenantId,
                                     wallet.getId(),
-                                    new DepositRequest(TEN, EUR.name(), "Concurrent deposit")
+                                    new DepositCommand(TEN, EUR.name(), "Concurrent deposit")
                             )
                     );
                     return true;
@@ -389,7 +389,7 @@ class ConcurrencyIntegrationTest {
     private void depositInTx(TenantId tenantId, WalletId walletId, BigDecimal amount) {
         transactionTemplate.execute(_ -> {
             depositService.deposit(tenantId, walletId,
-                    new DepositRequest(amount, EUR.name(), "Setup deposit"));
+                    new DepositCommand(amount, EUR.name(), "Setup deposit"));
             return null;
         });
     }

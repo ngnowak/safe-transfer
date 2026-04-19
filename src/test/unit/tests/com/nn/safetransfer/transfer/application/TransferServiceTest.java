@@ -499,6 +499,7 @@ class TransferServiceTest {
                 new BigDecimal("50.00"),
                 EUR,
                 "test-key",
+                "request-hash",
                 "Test transfer"
         );
     }

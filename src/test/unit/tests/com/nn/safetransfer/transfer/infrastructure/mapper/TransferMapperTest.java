@@ -29,6 +29,7 @@ class TransferMapperTest {
                 new BigDecimal("25.00"),
                 EUR,
                 "idem",
+                "test-hash",
                 "ref"
         );
 
@@ -40,7 +41,7 @@ class TransferMapperTest {
                 () -> assertThat(entity.getAmount()).isEqualByComparingTo("25.00"),
                 () -> assertThat(entity.getCurrency()).isEqualTo(transfer.getCurrency().name()),
                 () -> assertThat(entity.getIdempotencyKey()).isEqualTo("idem"),
-                () -> assertThat(entity.getRequestHash()).isEqualTo("request-hash")
+                () -> assertThat(entity.getRequestHash()).isEqualTo("test-hash")
         );
     }
 

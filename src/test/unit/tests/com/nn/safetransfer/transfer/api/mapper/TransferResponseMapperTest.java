@@ -25,7 +25,7 @@ class TransferResponseMapperTest {
         var amount = new BigDecimal("75.25");
         var transfer = Transfer.completed(
                 tenantId, sourceWalletId, destinationWalletId,
-                amount, USD, "idem-key", "Ref-123"
+                amount, USD, "idem-key", "test-hash", "Ref-123"
         );
 
         // when
@@ -50,7 +50,7 @@ class TransferResponseMapperTest {
         // given
         var transfer = Transfer.completed(
                 TenantId.create(), WalletId.create(), WalletId.create(),
-                new BigDecimal("10.00"), USD, "key", null
+                new BigDecimal("10.00"), USD, "key", "test-hash", null
         );
 
         // when

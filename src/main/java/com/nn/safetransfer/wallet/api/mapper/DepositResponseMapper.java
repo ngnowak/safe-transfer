@@ -38,7 +38,9 @@ public class DepositResponseMapper extends AbstractResultMapper<WalletError, Led
             case WalletError.WalletNotFound _ -> new ResponseStatusException(NOT_FOUND, errorMessage);
             case WalletError.WalletNotActive _ -> new ResponseStatusException(CONFLICT, errorMessage);
             case WalletError.CurrencyMismatch _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
-            default -> new ResponseStatusException(BAD_REQUEST, errorMessage);
+            case WalletError.DuplicateWallet _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
+            case WalletError.InsufficientFunds _ -> new ResponseStatusException(CONFLICT, errorMessage);
+            case WalletError.OtherError _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
         };
     }
 }

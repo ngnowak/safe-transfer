@@ -1,8 +1,5 @@
 package com.nn.safetransfer.common.api;
 
-import com.nn.safetransfer.wallet.application.exception.WalletCurrencyMismatchException;
-import com.nn.safetransfer.wallet.application.exception.WalletNotFoundException;
-import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -11,7 +8,6 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -20,9 +16,7 @@ import java.util.List;
 import static java.util.UUID.randomUUID;
 import static java.util.stream.Collectors.joining;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.UNSUPPORTED_MEDIA_TYPE;
 
 @Slf4j
@@ -30,7 +24,6 @@ import static org.springframework.http.HttpStatus.UNSUPPORTED_MEDIA_TYPE;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
-    @ResponseStatus(BAD_REQUEST)
     public ResponseEntity<ErrorDto> handleResponseStatusException(ResponseStatusException statusException) {
         log.warn("The result was error: {}", statusException.getMessage(), statusException);
         return new ResponseEntity<>(buildErrorDto(statusException.getReason()), statusException.getStatusCode());
@@ -56,24 +49,6 @@ public class GlobalExceptionHandler {
         var errorMsg = "Unsupported content type '%s'".formatted(contentType);
         log.warn(errorMsg, ex);
         return new ResponseEntity<>(buildErrorDto(errorMsg), UNSUPPORTED_MEDIA_TYPE);
-    }
-
-    @ExceptionHandler(WalletNotFoundException.class)
-    public ResponseEntity<ErrorDto> handleWalletNotFound(WalletNotFoundException ex) {
-        log.warn(ex.getMessage(), ex);
-        return new ResponseEntity<>(buildErrorDto(ex.getMessage()), NOT_FOUND);
-    }
-
-    @ExceptionHandler(WalletOperationNotAllowedException.class)
-    public ResponseEntity<ErrorDto> handleWalletOperationNotAllowed(WalletOperationNotAllowedException ex) {
-        log.warn(ex.getMessage(), ex);
-        return new ResponseEntity<>(buildErrorDto(ex.getMessage()), CONFLICT);
-    }
-
-    @ExceptionHandler(WalletCurrencyMismatchException.class)
-    public ResponseEntity<ErrorDto> handleWalletCurrencyMismatch(WalletCurrencyMismatchException ex) {
-        log.warn(ex.getMessage(), ex);
-        return new ResponseEntity<>(buildErrorDto(ex.getMessage()), BAD_REQUEST);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -158,7 +158,7 @@ class OutboxPublisherKafkaFailureIntegrationTest {
         transactionTemplate.executeWithoutResult(_ -> depositService.deposit(
                 tenantId,
                 walletId,
-                new DepositRequest(ONE_HUNDRED, CurrencyCode.EUR.name(), "Kafka failure setup deposit")
+                new DepositCommand(ONE_HUNDRED, CurrencyCode.EUR.name(), "Kafka failure setup deposit")
         ));
     }
 

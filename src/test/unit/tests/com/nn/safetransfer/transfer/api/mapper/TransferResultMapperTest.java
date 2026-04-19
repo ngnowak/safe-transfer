@@ -34,6 +34,7 @@ class TransferResultMapperTest {
                 new BigDecimal("10.00"),
                 CurrencyCode.EUR,
                 "idem",
+                "test-hash",
                 "ref"
         );
 

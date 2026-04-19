@@ -3,7 +3,6 @@ package com.nn.safetransfer.wallet.application;
 import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
-import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.application.exception.WalletCurrencyMismatchException;
 import com.nn.safetransfer.wallet.application.exception.WalletOperationNotAllowedException;
 import com.nn.safetransfer.wallet.domain.CurrencyCode;
@@ -28,12 +27,12 @@ public class DepositService {
     public Result<WalletError, LedgerEntry> deposit(
             TenantId tenantId,
             WalletId walletId,
-            DepositRequest request
+            DepositCommand command
     ) {
-        log.info("Processing deposit: walletId={}, tenantId={}, amount={}, currency={}", walletId, tenantId, request.amount(), request.currency());
+        log.info("Processing deposit: walletId={}, tenantId={}, amount={}, currency={}", walletId, tenantId, command.amount(), command.currency());
 
         return walletRepository.findByIdAndTenantId(walletId, tenantId)
-                .map(wallet -> processDeposit(tenantId, walletId, request, wallet))
+                .map(wallet -> processDeposit(tenantId, walletId, command, wallet))
                 .orElseGet(() -> {
                     log.warn("Wallet not found for deposit: walletId={}, tenantId={}", walletId, tenantId);
                     return Result.failure(new WalletError.WalletNotFound(walletId, tenantId));
@@ -43,10 +42,10 @@ public class DepositService {
     private Result<WalletError, LedgerEntry> processDeposit(
             TenantId tenantId,
             WalletId walletId,
-            DepositRequest request,
+            DepositCommand command,
             Wallet wallet
     ) {
-        var requestCurrency = CurrencyCode.from(request.currency());
+        var requestCurrency = CurrencyCode.from(command.currency());
 
         try {
             wallet.ensureCanAcceptDeposit(requestCurrency);
@@ -59,9 +58,9 @@ public class DepositService {
         var entry = LedgerEntry.credit(
                 tenantId,
                 walletId,
-                request.amount(),
+                command.amount(),
                 requestCurrency,
-                request.reference()
+                command.reference()
         );
 
         var saved = ledgerEntryRepository.save(entry);

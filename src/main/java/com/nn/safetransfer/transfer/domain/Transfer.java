@@ -85,27 +85,6 @@ public class Transfer {
                 .build();
     }
 
-    public static Transfer completed(
-            TenantId tenantId,
-            WalletId sourceWalletId,
-            WalletId destinationWalletId,
-            BigDecimal amount,
-            CurrencyCode currency,
-            String idempotencyKey,
-            String reference
-    ) {
-        return completed(
-                tenantId,
-                sourceWalletId,
-                destinationWalletId,
-                amount,
-                currency,
-                idempotencyKey,
-                "request-hash",
-                reference
-        );
-    }
-
     public BigDecimal getAmount() {
         return money.amount();
     }

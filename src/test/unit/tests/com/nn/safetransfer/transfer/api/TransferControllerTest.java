@@ -63,7 +63,7 @@ class TransferControllerTest {
                 new TenantId(tenantId),
                 new WalletId(sourceWalletId),
                 new WalletId(destinationWalletId),
-                amount, EUR, idempotencyKey, "Payment"
+                amount, EUR, idempotencyKey, "test-hash", "Payment"
         );
 
         var expectedResponse = TransferResponse.builder()
@@ -251,6 +251,7 @@ class TransferControllerTest {
                 new BigDecimal("10.00"),
                 EUR,
                 "idem",
+                "test-hash",
                 "ref"
         );
         var transferId = transfer.getId().value();

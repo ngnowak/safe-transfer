@@ -3,7 +3,6 @@ package com.nn.safetransfer.wallet.application;
 import com.nn.safetransfer.ledger.domain.LedgerEntry;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
 import com.nn.safetransfer.ledger.domain.LedgerEntryType;
-import com.nn.safetransfer.wallet.api.dto.DepositRequest;
 import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
@@ -47,7 +46,7 @@ class DepositServiceTest {
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
         var wallet = Wallet.create(tenantId, CustomerId.create(), EUR);
-        var request = new DepositRequest(new BigDecimal("100.00"), EUR.name(), "Test deposit");
+        var command = new DepositCommand(new BigDecimal("100.00"), EUR.name(), "Test deposit");
         var captor = ArgumentCaptor.forClass(LedgerEntry.class);
 
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
@@ -56,7 +55,7 @@ class DepositServiceTest {
                 .willAnswer(inv -> inv.getArgument(0));
 
         // when
-        var result = depositService.deposit(tenantId, walletId, request);
+        var result = depositService.deposit(tenantId, walletId, command);
 
         // then
         verify(ledgerEntryRepository).save(captor.capture());
@@ -79,13 +78,13 @@ class DepositServiceTest {
         // given
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
-        var request = new DepositRequest(new BigDecimal("100.00"), EUR.name(), null);
+        var command = new DepositCommand(new BigDecimal("100.00"), EUR.name(), null);
 
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.empty());
 
         // when
-        var result = depositService.deposit(tenantId, walletId, request);
+        var result = depositService.deposit(tenantId, walletId, command);
 
         // then
         assertThat(result.isFailure()).isTrue();
@@ -100,13 +99,13 @@ class DepositServiceTest {
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
         var wallet = Wallet.create(tenantId, CustomerId.create(), EUR);
-        var request = new DepositRequest(new BigDecimal("100.00"), "USD", null);
+        var command = new DepositCommand(new BigDecimal("100.00"), "USD", null);
 
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.of(wallet));
 
         // when
-        var result = depositService.deposit(tenantId, walletId, request);
+        var result = depositService.deposit(tenantId, walletId, command);
 
         // then
         assertThat(result.isFailure()).isTrue();
@@ -122,13 +121,13 @@ class DepositServiceTest {
         var walletId = WalletId.create();
         var wallet = Wallet.create(tenantId, CustomerId.create(), EUR);
         wallet.block();
-        var request = new DepositRequest(new BigDecimal("100.00"), EUR.name(), null);
+        var command = new DepositCommand(new BigDecimal("100.00"), EUR.name(), null);
 
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.of(wallet));
 
         // when
-        var result = depositService.deposit(tenantId, walletId, request);
+        var result = depositService.deposit(tenantId, walletId, command);
 
         // then
         assertThat(result.isFailure()).isTrue();
@@ -143,13 +142,13 @@ class DepositServiceTest {
         var tenantId = TenantId.create();
         var walletId = WalletId.create();
         var wallet = Wallet.create(tenantId, CustomerId.create(), EUR);
-        var request = new DepositRequest(new BigDecimal("100.00"), "INVALID", null);
+        var command = new DepositCommand(new BigDecimal("100.00"), "INVALID", null);
 
         given(walletRepository.findByIdAndTenantId(walletId, tenantId))
                 .willReturn(Optional.of(wallet));
 
         // when / then
-        assertThatThrownBy(() -> depositService.deposit(tenantId, walletId, request))
+        assertThatThrownBy(() -> depositService.deposit(tenantId, walletId, command))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("INVALID");
 

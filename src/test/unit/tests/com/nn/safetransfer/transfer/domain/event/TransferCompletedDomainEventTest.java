@@ -22,6 +22,7 @@ class TransferCompletedDomainEventTest {
                 new BigDecimal("42.00"),
                 EUR,
                 "idem-42",
+                "test-hash",
                 "reference"
         );
 

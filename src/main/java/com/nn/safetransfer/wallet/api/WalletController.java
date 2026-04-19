@@ -9,6 +9,7 @@ import com.nn.safetransfer.wallet.api.mapper.BalanceResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.DepositResponseMapper;
 import com.nn.safetransfer.wallet.api.mapper.WalletResultMapper;
 import com.nn.safetransfer.wallet.application.CreateWalletUseCase;
+import com.nn.safetransfer.wallet.application.DepositCommand;
 import com.nn.safetransfer.wallet.application.DepositService;
 import com.nn.safetransfer.wallet.application.GetBalanceQuery;
 import com.nn.safetransfer.wallet.application.GetWalletQuery;
@@ -53,7 +54,7 @@ public class WalletController implements WalletApi {
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
     ) {
-        var command = getGetWalletQuery(tenantId, walletId);
+        var command = buildGetWalletQuery(tenantId, walletId);
         var wallet = queryWalletUseCase.handle(command);
 
         return walletResultMapper.toWalletResponse(wallet);
@@ -76,10 +77,11 @@ public class WalletController implements WalletApi {
             @PathVariable UUID walletId,
             @Valid @RequestBody DepositRequest request
     ) {
+        var command = buildDepositCommand(request);
         var result = depositService.deposit(
                 new TenantId(tenantId),
                 new WalletId(walletId),
-                request
+                command
         );
         return depositResponseMapper.toDepositResponse(result);
     }
@@ -92,7 +94,7 @@ public class WalletController implements WalletApi {
                 .build();
     }
 
-    private static GetWalletQuery getGetWalletQuery(UUID tenantId, UUID walletId) {
+    private GetWalletQuery buildGetWalletQuery(UUID tenantId, UUID walletId) {
         return GetWalletQuery.builder()
                 .tenantId(new TenantId(tenantId))
                 .walletId(new WalletId(walletId))

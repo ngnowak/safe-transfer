@@ -35,6 +35,7 @@ class OutboxEventFactoryTest {
                 FIFTY,
                 EUR,
                 "idem-123",
+                "test-hash",
                 "Payment"
         );
 

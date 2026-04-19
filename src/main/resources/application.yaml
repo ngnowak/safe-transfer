@@ -5,9 +5,9 @@ spring:
     compose:
       file: docker/docker-compose.yml
   datasource:
-    url: jdbc:postgresql://localhost:5432/safe_transfer
-    username: safe_transfer
-    password: safe_transfer
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/safe_transfer}
+    username: ${DB_USERNAME:safe_transfer}
+    password: ${DB_PASSWORD:safe_transfer}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

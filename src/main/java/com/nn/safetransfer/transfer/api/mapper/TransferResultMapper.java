@@ -54,7 +54,7 @@ public class TransferResultMapper extends AbstractResultMapper<TransferError, Tr
             case TransferError.InsufficientFunds _ -> new ResponseStatusException(CONFLICT, errorMessage);
             case TransferError.TransferLimitExceeded _ -> new ResponseStatusException(CONFLICT, errorMessage);
             case TransferError.IdempotencyKeyConflict _ -> new ResponseStatusException(CONFLICT, errorMessage);
-            default -> new ResponseStatusException(BAD_REQUEST, errorMessage);
+            case TransferError.OtherError _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
         };
     }
 }

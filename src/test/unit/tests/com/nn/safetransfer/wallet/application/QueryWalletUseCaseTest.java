@@ -24,7 +24,7 @@ class QueryWalletUseCaseTest {
     private WalletRepository walletRepository;
 
     @InjectMocks
-    private QueryWalletUseCase queryWalletUseCase;
+    private QueryWalletService queryWalletUseCase;
 
     @Test
     void shouldReturnWalletWhenFound() {

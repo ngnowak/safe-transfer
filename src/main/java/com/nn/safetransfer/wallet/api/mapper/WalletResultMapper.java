@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RequiredArgsConstructor
@@ -27,7 +28,10 @@ public class WalletResultMapper extends AbstractResultMapper<WalletError, Wallet
         return switch (error) {
             case WalletError.DuplicateWallet _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
             case WalletError.WalletNotFound _ -> new ResponseStatusException(NOT_FOUND, errorMessage);
-            default -> new ResponseStatusException(BAD_REQUEST, errorMessage);
+            case WalletError.WalletNotActive _ -> new ResponseStatusException(CONFLICT, errorMessage);
+            case WalletError.CurrencyMismatch _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
+            case WalletError.InsufficientFunds _ -> new ResponseStatusException(CONFLICT, errorMessage);
+            case WalletError.OtherError _ -> new ResponseStatusException(BAD_REQUEST, errorMessage);
         };
     }
 }
