@@ -10,7 +10,6 @@ import com.nn.safetransfer.transfer.domain.TransferId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,7 +26,6 @@ import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY_MAX_LENG
 import static com.nn.safetransfer.common.api.ApiHeaders.IDEMPOTENCY_KEY_TOO_LONG_MESSAGE;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
-@Slf4j
 @RequiredArgsConstructor
 @RestController
 public class TransferController implements TransferApi {
@@ -43,7 +41,6 @@ public class TransferController implements TransferApi {
             @Valid @RequestBody CreateTransferRequest request
     ) {
         validateIdempotencyKey(idempotencyKey);
-        log.debug("Transfer request: tenantId={}, idempotencyKey={}, source={}, destination={}", tenantId, idempotencyKey, request.sourceWalletId(), request.destinationWalletId());
         var result = transferService.transfer(new TenantId(tenantId), idempotencyKey, request);
 
         return transferResultMapper.toTransferResponse(result);
@@ -54,13 +51,16 @@ public class TransferController implements TransferApi {
             @PathVariable UUID tenantId,
             @PathVariable UUID transferId
     ) {
-        log.debug("Get transfer request: tenantId={}, transferId={}", tenantId, transferId);
-        var query = GetTransferQuery.builder()
+        var query = getGetTransferQuery(tenantId, transferId);
+        var result = queryTransferUseCase.handle(query);
+        return transferResultMapper.toTransferResponse(result);
+    }
+
+    private GetTransferQuery getGetTransferQuery(UUID tenantId, UUID transferId) {
+        return GetTransferQuery.builder()
                 .tenantId(new TenantId(tenantId))
                 .transferId(new TransferId(transferId))
                 .build();
-        var result = queryTransferUseCase.handle(query);
-        return transferResultMapper.toTransferResponse(result);
     }
 
     private void validateIdempotencyKey(String idempotencyKey) {

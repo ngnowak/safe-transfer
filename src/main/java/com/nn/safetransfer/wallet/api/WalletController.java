@@ -19,14 +19,12 @@ import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.WalletId;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-@Slf4j
 @RequiredArgsConstructor
 @RestController
 public class WalletController implements WalletApi {
@@ -45,12 +43,9 @@ public class WalletController implements WalletApi {
             @PathVariable UUID tenantId,
             @Valid @RequestBody CreateWalletRequest request
     ) {
-        log.debug("Creating wallet for tenantId={}, customerId={}, currency={}", tenantId, request.customerId(), request.currency());
         var command = createWalletCommandMapper.toCreateWalletCommand(tenantId, request);
         var wallet = createWalletUseCase.handle(command);
-        var response = walletResultMapper.toWalletResponse(wallet);
-        log.info("Wallet created: walletId={}, tenantId={}", response.walletId(), tenantId);
-        return response;
+        return walletResultMapper.toWalletResponse(wallet);
     }
 
     @Override
@@ -58,7 +53,6 @@ public class WalletController implements WalletApi {
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
     ) {
-        log.debug("Getting wallet: walletId={}, tenantId={}", walletId, tenantId);
         var command = getGetWalletQuery(tenantId, walletId);
         var wallet = queryWalletUseCase.handle(command);
 
@@ -70,7 +64,6 @@ public class WalletController implements WalletApi {
             @PathVariable UUID tenantId,
             @PathVariable UUID walletId
     ) {
-        log.debug("Getting balance: walletId={}, tenantId={}", walletId, tenantId);
         var query = getBalanceQuery(tenantId, walletId);
         var result = queryBalanceUseCase.handle(query);
 
@@ -83,13 +76,11 @@ public class WalletController implements WalletApi {
             @PathVariable UUID walletId,
             @Valid @RequestBody DepositRequest request
     ) {
-        log.debug("Depositing: walletId={}, tenantId={}, amount={}, currency={}", walletId, tenantId, request.amount(), request.currency());
         var result = depositService.deposit(
                 new TenantId(tenantId),
                 new WalletId(walletId),
                 request
         );
-        result.getValue().ifPresent(ledgerEntry -> log.info("Deposit completed: ledgerEntryId={}, walletId={}", ledgerEntry.getId(), walletId));
         return depositResponseMapper.toDepositResponse(result);
     }
 

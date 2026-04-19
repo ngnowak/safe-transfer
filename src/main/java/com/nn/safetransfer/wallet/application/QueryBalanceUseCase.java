@@ -4,9 +4,11 @@ import com.nn.safetransfer.common.domain.result.Result;
 import com.nn.safetransfer.ledger.domain.LedgerEntryRepository;
 import com.nn.safetransfer.wallet.domain.WalletRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class QueryBalanceUseCase {
@@ -16,6 +18,8 @@ public class QueryBalanceUseCase {
 
     @Transactional(readOnly = true)
     public Result<WalletError, BalanceResult> handle(GetBalanceQuery query) {
+        log.debug("Querying balance: walletId={}, tenantId={}", query.walletId(), query.tenantId());
+
         return walletRepository.findByIdAndTenantId(query.walletId(), query.tenantId())
                 .<Result<WalletError, BalanceResult>>map(wallet -> {
                     var balance = ledgerEntryRepository.calculateBalance(query.tenantId(), query.walletId());
