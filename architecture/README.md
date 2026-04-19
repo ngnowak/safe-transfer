@@ -13,14 +13,6 @@ Recommended reading order:
 7. `use-cases.puml`
 8. `deployment-local.puml`
 
-Render with PlantUML from the `safetransfer` project directory, for example:
-
-```powershell
-plantuml .\architecture\*.puml
-```
-
-Main points to explain:
-
 - Controllers implement OpenAPI contract interfaces, keeping endpoint documentation separate from controller logic.
 - Wallet balances are derived from immutable ledger entries.
 - Transfers create debit and credit ledger entries in one transaction.

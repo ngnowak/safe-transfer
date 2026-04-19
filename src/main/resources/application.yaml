@@ -53,8 +53,35 @@ logging:
   level:
     root: INFO
     com.nn.safetransfer: INFO
+    org.zalando.logbook: TRACE
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+
+logbook:
+  format:
+    style: json
+  strategy: default
+  predicate:
+    include:
+      - path: /api/**
+    exclude:
+      - path: /actuator/**
+      - path: /swagger-ui/**
+      - path: /v3/api-docs/**
+  obfuscate:
+    headers:
+      - Authorization
+      - Cookie
+      - Set-Cookie
+      - X-Api-Key
+    parameters:
+      - access_token
+      - token
+      - password
+    json-body-fields:
+      - password
+      - secret
+      - token
 
 safetransfer:
   transfer:

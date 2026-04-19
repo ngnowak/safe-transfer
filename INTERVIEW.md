@@ -1,4 +1,4 @@
-# SafeTransfer Interview Notes
+# SafeTransfer Notes
 
 ## What This Is
 
@@ -40,7 +40,55 @@ It is intentionally scoped as a modular monolith. The main goal is not CRUD, but
 8. Transfer and outbox behavior is observable through custom Micrometer metrics.
 9. Tests are split into unit, integration, and e2e layers.
 
-## Demo Flow
+## Features
+
+- Multi-tenant wallet model
+- Wallet creation and wallet lookup
+- Deposits
+- Internal wallet-to-wallet transfers
+- Configurable transfer risk limit
+- Immutable ledger entries and balance derived from ledger
+- Idempotent transfer handling
+- Concurrency-safe transfer processing
+- Transactional outbox
+- Asynchronous audit consumer
+- Global exception handling
+- Swagger / OpenAPI
+- Dockerized local PostgreSQL and Kafka
+- Unit and integration tests
+
+## Stack
+
+- Java 25
+- Spring Boot 4
+- Spring Web MVC
+- Spring Data JPA
+- Spring Validation
+- Spring Kafka
+- Spring Actuator
+- PostgreSQL
+- Liquibase
+- Micrometer / Prometheus registry
+- Lombok
+- Spring Scheduling
+- JUnit 5 / Mockito
+
+## Modules
+
+- `wallet`
+   - wallet lifecycle and queries
+- `ledger`
+   - immutable debit/credit entries
+- `transfer`
+   - transfer orchestration, idempotency, concurrency control
+- `outbox`
+   - transactional outbox persistence and publisher
+- `audit`
+   - asynchronous audit persistence
+- `common`
+   - shared API and configuration
+
+## How It Works
 
 1. Start local infrastructure:
 
@@ -115,6 +163,45 @@ It is intentionally scoped as a modular monolith. The main goal is not CRUD, but
    - transfer above configured risk limit returns `409 Conflict`
    - insufficient funds returns `409 Conflict`
 
+## Transfer Flow
+
+1. Client sends a transfer request with an `Idempotency-Key`.
+2. `TransferService` validates wallets, currency, balance, and idempotency.
+3. `TransferPolicyEvaluator` runs configured transfer policies, including the single-transfer risk limit from `application.yaml`.
+4. Transfer row and ledger rows are written in one transaction.
+5. A `transfer.completed` outbox row is written in the same transaction.
+6. A newly created transfer returns `201 Created`; an idempotent replay of the same request returns the existing transfer with `200 OK`.
+7. `OutboxPublisher` atomically claims retryable outbox rows, marks them `PROCESSING`, and commits the claim transaction.
+8. The claimed event is dispatched outside the claim transaction.
+9. With Kafka publishing enabled, the event is sent to Kafka and consumed by `AuditKafkaListener`; otherwise the local in-process dispatcher calls `AuditConsumer` directly.
+10. `AuditConsumer` records an audit row.
+11. Outbox row becomes `PUBLISHED`, `FAILED`, or `FATAL`.
+
+## Reliability Rules
+
+- Transfer state and outbox event are committed atomically.
+- Audit writing is asynchronous.
+- Duplicate audit inserts are tolerated via unique `source_event_id`.
+- Outbox publishing retries failed rows.
+- Rows that exceed retry limit become `FATAL`.
+- Concurrent publishers do not double-claim rows because claim uses `FOR UPDATE SKIP LOCKED` and immediately marks rows as `PROCESSING`.
+- Stale `PROCESSING` rows can be reclaimed after the claim lease expires.
+
+## Outbox States
+
+- `NEW`: freshly written business event.
+- `PROCESSING`: claimed by a publisher; stale claims can be retried.
+- `PUBLISHED`: successfully processed by async consumer.
+- `FAILED`: processing failed, will be retried.
+- `FATAL`: retry limit reached, no more attempts.
+
+## Async Scope
+
+Implemented async flow:
+
+- Kafka disabled: `transfer.completed` -> `outbox_event` -> `OutboxPublisher` -> `AuditConsumer` -> `audit_event`
+- Kafka enabled: `transfer.completed` -> `outbox_event` -> `OutboxPublisher` -> Kafka -> `AuditKafkaListener` -> `AuditConsumer` -> `audit_event`
+
 ## Main Technical Decisions
 
 ### Ledger As Source Of Truth
@@ -177,6 +264,32 @@ Useful commands:
 .\gradlew.bat e2eTest
 ```
 
+## Running Full Docker Stack
+
+The normal local setup starts PostgreSQL and Kafka:
+
+```powershell
+docker compose -f docker/docker-compose.yml up -d
+```
+
+The full Docker stack starts PostgreSQL, Kafka, and the application container:
+
+```powershell
+docker compose -f docker/docker-compose-with-app.yml up --build
+```
+
+Swagger UI is available at:
+
+```text
+http://localhost:8080/swagger-ui.html
+```
+
+## Observability
+
+SafeTransfer exposes health checks, Actuator metrics, Prometheus-formatted metrics, custom transfer metrics, outbox publishing metrics, and Logbook request/response logs.
+
+Details are in `docs/observability.md`.
+
 ## Architecture Assets
 
 - `architecture/README.md`
@@ -213,6 +326,6 @@ Useful commands:
   - complete or reject the transfer idempotently
 - External payment provider integration for top-ups or withdrawals, using provider idempotency keys, timeouts, retries, and contract tests.
 
-## Short Pitch
+## Summary
 
 SafeTransfer is a Spring Boot wallet transfer system focused on correctness. Balances are derived from immutable ledger entries. Transfer creation is idempotent using a request hash. Transfer state and outbox events are committed atomically. Outbox publishing is retried and happens outside the DB claim transaction. Kafka-backed audit processing is idempotent, so duplicate delivery is safe. Transfer policies are extensible, and the current risk limit is externalized in configuration and covered by tests.

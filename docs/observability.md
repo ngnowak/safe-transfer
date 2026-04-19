@@ -5,7 +5,7 @@ SafeTransfer exposes operational and business signals through Spring Boot Actuat
 ## Endpoints
 
 | Endpoint | Purpose |
-| --- | --- |
+| ---       | --- |
 | `/actuator/health` | Runtime health check for local demo, Docker health checks, and deployment readiness. |
 | `/actuator/metrics` | List of available Micrometer meters. Useful for local inspection. |
 | `/actuator/metrics/{metricName}` | JSON view of one metric, including available tags and measurements. |
@@ -41,7 +41,25 @@ Outbox publishing:
 | `safetransfer.outbox.fatal` | `event_type` | Counter for events that reached the retry limit. |
 | `safetransfer.outbox.publish.duration` | `event_type`, optional `status` | Timer for outbox publish duration. |
 
-## How To Demo In An Interview
+## HTTP Request And Response Logs
+
+SafeTransfer uses Zalando Logbook to log REST API traffic.
+
+The application logs request and response entries for `/api/**` endpoints through the
+`org.zalando.logbook.Logbook` logger at `TRACE` level. Actuator and OpenAPI endpoints
+are excluded so health checks and Swagger traffic do not pollute the logs.
+
+Example log lines contain:
+
+- `"type":"request"` for the incoming HTTP request.
+- `"type":"response"` for the HTTP response.
+- `correlation` so the request and response can be matched.
+- request path, method, headers, status, and JSON body when available.
+
+Sensitive headers and fields such as `Authorization`, cookies, tokens, and passwords
+are obfuscated by configuration.
+
+## How To Use
 
 Start the application, then run:
 
@@ -59,10 +77,6 @@ The script:
 6. Prints custom transfer metrics grouped by outcome.
 7. Prints outbox publish metrics.
 8. Shows where Prometheus can scrape metrics from.
-
-Suggested explanation:
-
-> I use Actuator for runtime health and Micrometer for technical and business metrics. The JVM and HTTP metrics tell me whether the process is healthy. The custom transfer metrics tell me what the business flow is doing: how many transfers succeed, why failures happen, and how long transfer processing takes. The outbox metrics tell me whether asynchronous event delivery is healthy. In production, Prometheus would scrape `/actuator/prometheus`, and Grafana or alerts would watch transfer failure rate, latency, and fatal outbox rows.
 
 ## Useful Prometheus Queries
 

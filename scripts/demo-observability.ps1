@@ -175,5 +175,4 @@ Write-Step "8. Prometheus endpoint"
 Write-Host "Open this endpoint or point Prometheus at it:"
 Write-Host "$BaseUrl/actuator/prometheus" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "Useful interview line:"
 Write-Host "The app exposes process health, standard JVM/HTTP metrics, and business metrics for transfer outcomes and outbox publishing reliability."
