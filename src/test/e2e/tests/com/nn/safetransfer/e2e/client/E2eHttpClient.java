@@ -2,7 +2,6 @@ package com.nn.safetransfer.e2e.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 
 import java.io.IOException;
 import java.net.URI;
@@ -10,11 +9,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.http.HttpHeaders.ACCEPT;
+import static org.springframework.http.HttpHeaders.ACCEPT_LANGUAGE;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 public class E2eHttpClient {
+
+    private static final String ACCEPT_LANGUAGE_VALUE = Locale.ENGLISH.toLanguageTag();
 
     private final String baseUrl;
     private final ObjectMapper objectMapper;
@@ -32,7 +37,8 @@ public class E2eHttpClient {
         var request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(15))
-                .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                .header(ACCEPT, APPLICATION_JSON_VALUE)
+                .header(ACCEPT_LANGUAGE, ACCEPT_LANGUAGE_VALUE)
                 .GET()
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -46,8 +52,9 @@ public class E2eHttpClient {
         var requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(15))
-                .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .header(ACCEPT, APPLICATION_JSON_VALUE)
+                .header(ACCEPT_LANGUAGE, ACCEPT_LANGUAGE_VALUE)
+                .header(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON_VALUE)
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
 
         headers.forEach(requestBuilder::header);

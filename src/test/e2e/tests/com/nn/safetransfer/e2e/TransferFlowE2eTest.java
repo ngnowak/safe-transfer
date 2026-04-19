@@ -219,9 +219,15 @@ class TransferFlowE2eTest {
                 randomUUID().toString()
         );
 
+        var sourceWalletId = UUID.fromString(sourceWallet.walletId());
+        var destinationWalletId = UUID.fromString(destinationWallet.walletId());
+        var firstLockedWalletId = sourceWalletId.compareTo(destinationWalletId) < 0
+                ? sourceWalletId
+                : destinationWalletId;
+
         assertThat(error.errorMessage()).isEqualTo(
                 "Wallet with id '%s' was not found for tenant '%s'"
-                        .formatted(sourceWallet.walletId(), otherTenantId)
+                        .formatted(firstLockedWalletId, otherTenantId)
         );
         assertBalance(owningTenantId, sourceWallet.walletId(), ONE_HUNDRED);
         assertBalance(owningTenantId, destinationWallet.walletId(), BigDecimal.ZERO);
