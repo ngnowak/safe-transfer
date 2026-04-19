@@ -1,7 +1,5 @@
 package com.nn.safetransfer.wallet.infrastructure.persistence;
 
-import com.nn.safetransfer.wallet.domain.CurrencyCode;
-import com.nn.safetransfer.wallet.domain.CustomerId;
 import com.nn.safetransfer.wallet.domain.TenantId;
 import com.nn.safetransfer.wallet.domain.Wallet;
 import com.nn.safetransfer.wallet.domain.WalletId;
@@ -28,12 +26,6 @@ public class WalletRepositoryJpaAdapter implements WalletRepository {
     }
 
     @Override
-    public Optional<Wallet> findById(WalletId walletId) {
-        return walletRepository.findById(walletId.value())
-                .map(walletJpaMapper::toDomain);
-    }
-
-    @Override
     public Optional<Wallet> findByIdAndTenantId(WalletId walletId, TenantId tenantId) {
         return walletRepository.findByIdAndTenantId(walletId.value(), tenantId.value())
                 .map(walletJpaMapper::toDomain);
@@ -44,12 +36,5 @@ public class WalletRepositoryJpaAdapter implements WalletRepository {
         return walletRepository
                 .findByIdAndTenantIdForUpdate(walletId.value(), tenantId.value())
                 .map(walletJpaMapper::toDomain);
-    }
-
-    @Override
-    public boolean existsByTenantIdAndCustomerIdAndCurrency(
-            TenantId tenantId, CustomerId customerId, CurrencyCode currency) {
-        return walletRepository.existsByTenantIdAndCustomerIdAndCurrency(tenantId.value(),
-                customerId.value(), currency.name());
     }
 }
